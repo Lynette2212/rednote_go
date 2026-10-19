@@ -71,6 +71,19 @@ func Enabled() bool {
 	return client != nil
 }
 
+// Ping 健康检查用；未启用时视为正常（搜索会降级）
+func Ping(ctx context.Context) bool {
+	if client == nil {
+		return true
+	}
+	res, err := client.Ping(client.Ping.WithContext(ctx))
+	if err != nil {
+		return false
+	}
+	defer res.Body.Close()
+	return !res.IsError()
+}
+
 // NoteDoc 笔记的搜索文档：只放检索需要的字段，展示数据回 PostgreSQL 取
 type NoteDoc struct {
 	Id         int64    `json:"id"`

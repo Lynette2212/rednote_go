@@ -368,9 +368,34 @@ func TestRegisterLoginAndAuth(t *testing.T) {
 	if token == "" {
 		t.Fatal("注册返回的 token 为空")
 	}
+
+	// 登出后 token 进入黑名单（依赖 Redis）
+	if os.Getenv("REDNOTE_REDIS_ADDR") != "" {
+		e.mustOK(e.do(http.MethodPost, "/api/logout", token, nil), "登出")
+		if resp := e.do(http.MethodGet, "/api/user/info", token, nil); resp.Code != 401 {
+			t.Fatalf("登出后旧 token 应失效，实际 code=%d", resp.Code)
+		}
+	}
 }
 
 // ---------- 发笔记 / 瀑布流 / 详情 ----------
+
+func TestPublishRejectsExternalImages(t *testing.T) {
+	e := newTestEnv(t)
+	token, _ := e.register("author_bad_images")
+	for _, images := range [][]string{
+		{"http://evil.example/x.jpg"},
+		{"/uploads/../secret.png"},
+		{"/uploads/images/x.txt"},
+	} {
+		resp := e.do(http.MethodPost, "/api/note/create", token, map[string]interface{}{
+			"title": "bad image", "images": images,
+		})
+		if resp.Success || resp.Code != 400 {
+			t.Fatalf("非法图片地址 %v 应被拒绝，实际 code=%d success=%v", images, resp.Code, resp.Success)
+		}
+	}
+}
 
 func TestPublishFeedAndDetail(t *testing.T) {
 	e := newTestEnv(t)
@@ -714,11 +739,24 @@ func TestCommentCountsAndPermission(t *testing.T) {
 	if resp := e.do(http.MethodPost, fmt.Sprintf("/api/comment/delete/%d", rootComment.Id), otherToken, nil); resp.Code != 403 {
 		t.Fatalf("删他人评论应返回 403，实际 code=%d", resp.Code)
 	}
-	// 删除自己的评论：计数同步减 1
+	// 删除自己的一级评论：级联隐藏其下两条回复，计数减 3
 	del := e.do(http.MethodPost, fmt.Sprintf("/api/comment/delete/%d", rootComment.Id), userToken, nil)
 	e.mustOK(del, "删除自己的评论")
-	if got := e.noteDetail(note.Id, authorToken); got.CommentCount != 2 {
-		t.Fatalf("删除后评论数应为 2，实际 %d", got.CommentCount)
+	if got := e.noteDetail(note.Id, authorToken); got.CommentCount != 0 {
+		t.Fatalf("级联删除后评论数应为 0，实际 %d", got.CommentCount)
+	}
+
+	// 列表里不再出现任何评论
+	after := e.do(http.MethodGet, fmt.Sprintf("/api/comment/list?noteId=%d&page=1&limit=20", note.Id), "", nil)
+	e.mustOK(after, "删除后的评论列表")
+	var afterData struct {
+		Results []struct {
+			Id int64 `json:"id"`
+		} `json:"results"`
+	}
+	after.into(t, &afterData)
+	if len(afterData.Results) != 0 {
+		t.Fatalf("级联删除后仍有 %d 条一级评论", len(afterData.Results))
 	}
 }
 

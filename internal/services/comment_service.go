@@ -66,7 +66,7 @@ func (s *commentService) Create(userId, noteId, parentId, replyToUserId int64, c
 			return err
 		}
 		return repositories.NoteRepository.Updates(tx, noteId,
-			map[string]interface{}{"comment_count": note.CommentCount + 1})
+			map[string]interface{}{"comment_count": gorm.Expr("comment_count + 1")})
 	})
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func (s *commentService) Delete(userId, commentId int64) error {
 			return errs.NoPermission()
 		}
 		noteId = comment.NoteId
-		note, err := repositories.NoteRepository.GetForUpdate(tx, comment.NoteId)
+		_, err := repositories.NoteRepository.GetForUpdate(tx, comment.NoteId)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errs.NotFound("笔记不存在")
@@ -98,12 +98,28 @@ func (s *commentService) Delete(userId, commentId int64) error {
 		}); err != nil {
 			return err
 		}
-		count := note.CommentCount - 1
-		if count < 0 {
-			count = 0
+
+		// 删除一级评论时级联隐藏其回复，并按实际隐藏条数扣减计数
+		deleted := int64(1)
+		if comment.ParentId == 0 {
+			var childCount int64
+			if err := tx.Model(&models.Comment{}).
+				Where("parent_id = ? AND status = ?", commentId, constants.StatusOk).
+				Count(&childCount).Error; err != nil {
+				return err
+			}
+			if childCount > 0 {
+				if err := tx.Model(&models.Comment{}).
+					Where("parent_id = ? AND status = ?", commentId, constants.StatusOk).
+					Update("status", constants.StatusDeleted).Error; err != nil {
+					return err
+				}
+				deleted += childCount
+			}
 		}
-		return repositories.NoteRepository.Updates(tx, comment.NoteId,
-			map[string]interface{}{"comment_count": count})
+		return repositories.NoteRepository.Updates(tx, comment.NoteId, map[string]interface{}{
+			"comment_count": gorm.Expr("GREATEST(comment_count - ?, 0)", deleted),
+		})
 	})
 	if err == nil && noteId > 0 {
 		NoteService.InvalidateNoteCache(noteId)

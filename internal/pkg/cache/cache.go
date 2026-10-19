@@ -33,6 +33,14 @@ func Enabled() bool {
 	return rdb != nil
 }
 
+// Ping 健康检查用
+func Ping(ctx context.Context) bool {
+	if rdb == nil {
+		return true
+	}
+	return rdb.Ping(ctx).Err() == nil
+}
+
 func NoteKey(id int64) string {
 	return "rednote:note:" + strconv.FormatInt(id, 10)
 }
@@ -85,17 +93,19 @@ func Del(ctx context.Context, keys ...string) {
 	rdb.Del(ctx, keys...)
 }
 
+// incrWithTTLScript 原子递增并设置过期，避免 INCR 后进程崩溃导致 key 永不过期
+var incrWithTTLScript = redis.NewScript(`
+local current = redis.call("INCR", KEYS[1])
+if current == 1 then
+	redis.call("PEXPIRE", KEYS[1], ARGV[1])
+end
+return current
+`)
+
 // Incr 限流用：对 key 原子自增，首次创建时设置过期（固定窗口计数）
 func Incr(ctx context.Context, key string, ttl time.Duration) (int64, error) {
 	if rdb == nil {
 		return 0, errors.New("redis 未启用")
 	}
-	n, err := rdb.Incr(ctx, key).Result()
-	if err != nil {
-		return 0, err
-	}
-	if n == 1 {
-		rdb.Expire(ctx, key, ttl)
-	}
-	return n, nil
+	return incrWithTTLScript.Run(ctx, rdb, []string{key}, ttl.Milliseconds()).Int64()
 }

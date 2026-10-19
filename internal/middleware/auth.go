@@ -1,11 +1,12 @@
 package middleware
 
 import (
-	"net/http"
 	"strings"
 
+	"rednote/internal/models/constants"
 	"rednote/internal/pkg/common"
 	"rednote/internal/pkg/errs"
+	"rednote/internal/pkg/ginx"
 	"rednote/internal/pkg/token"
 	"rednote/internal/services"
 
@@ -16,13 +17,13 @@ import (
 func OptionalAuth(ctx *gin.Context) {
 	auth := ctx.GetHeader("Authorization")
 	if auth != "" {
-		tokenStr := strings.TrimPrefix(auth, "Bearer ")
-		if tokenStr != auth || !strings.Contains(auth, " ") {
-			tokenStr = strings.TrimSpace(tokenStr)
-		}
-		if claims, err := token.Parse(tokenStr); err == nil {
-			if user := services.UserService.Get(claims.UserId); user != nil {
-				common.SetCurrentUser(ctx, user)
+		tokenStr := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
+		if tokenStr != "" && !token.IsRevoked(ctx.Request.Context(), tokenStr) {
+			if claims, err := token.Parse(tokenStr); err == nil {
+				user := services.UserService.Get(claims.UserId)
+				if user != nil && user.Status == constants.StatusOk {
+					common.SetCurrentUser(ctx, user)
+				}
 			}
 		}
 	}
@@ -33,11 +34,8 @@ func OptionalAuth(ctx *gin.Context) {
 func RequireAuth() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		if common.GetCurrentUser(ctx) == nil {
-			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"code":    errs.CodeNotLogin,
-				"message": "请先登录",
-				"success": false,
-			})
+			ginx.WriteJSON(ctx, errs.NotLogin())
+			ctx.Abort()
 			return
 		}
 		ctx.Next()

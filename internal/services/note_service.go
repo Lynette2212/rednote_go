@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"path"
 	"strings"
 	"time"
 
@@ -81,6 +82,14 @@ func (s *noteService) Publish(userId int64, title, content string, images, tags 
 	if len(images) == 0 {
 		return nil, errs.ParamsError("请至少上传一张图片")
 	}
+	if len(images) > 9 {
+		return nil, errs.ParamsError("最多上传 9 张图片")
+	}
+	for _, image := range images {
+		if !validUploadPath(image) {
+			return nil, errs.ParamsError("图片地址不合法")
+		}
+	}
 	if title == "" {
 		return nil, errs.ParamsError("标题不能为空")
 	}
@@ -129,6 +138,20 @@ func (s *noteService) Delete(userId, noteId int64) error {
 }
 
 // ===== 搜索索引：发布/删除时同步 ES；失败只记日志，不影响主流程 =====
+
+// validUploadPath 只允许引用本服务上传目录下的图片，阻止路径穿越与外部 URL
+func validUploadPath(p string) bool {
+	if !strings.HasPrefix(p, "/uploads/") || strings.Contains(p, "..") ||
+		strings.ContainsAny(p, "\\\x00") {
+		return false
+	}
+	switch strings.ToLower(path.Ext(p)) {
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp":
+		return true
+	default:
+		return false
+	}
+}
 
 func (s *noteService) noteDoc(note *models.Note) es.NoteDoc {
 	var tags []string
@@ -270,8 +293,18 @@ func (s *noteService) notesByIds(ids []int64, paging *sqls.Paging) ([]models.Not
 		return []models.Note{}, paging
 	}
 	list := repositories.NoteRepository.Find(sqls.DB(),
-		sqls.NewCnd().Eq("status", constants.StatusOk).In("id", ids).Desc("id"))
-	return list, paging
+		sqls.NewCnd().Eq("status", constants.StatusOk).In("id", ids))
+	byId := make(map[int64]models.Note, len(list))
+	for _, note := range list {
+		byId[note.Id] = note
+	}
+	ordered := make([]models.Note, 0, len(list))
+	for _, id := range ids {
+		if note, ok := byId[id]; ok {
+			ordered = append(ordered, note)
+		}
+	}
+	return ordered, paging
 }
 
 // Search 搜索：优先走 Elasticsearch（相关性排序）；ES 未启用或查询出错时降级数据库模糊匹配
@@ -287,10 +320,15 @@ func (s *noteService) Search(keyword string, page, limit int) ([]models.Note, *s
 		}
 	}
 	// 降级：数据库模糊匹配（后端换 ES 前的原始实现）
-	kw := "%" + keyword + "%"
+	kw := "%" + escapeLike(keyword) + "%"
 	cnd := sqls.NewCnd().Eq("status", constants.StatusOk).Desc("id").Page(page, limit).
 		Where("title ILIKE ? OR content ILIKE ? OR tags ILIKE ?", kw, kw, kw)
 	return repositories.NoteRepository.FindPageByCnd(sqls.DB(), cnd)
+}
+
+// escapeLike 转义 ILIKE 通配符，避免用户输入 % / _ 被当作模式
+func escapeLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }
 
 // searchByES 查 ES 拿 id 列表（按相关性排序），再回 PostgreSQL 取详情；出错返回 nil 触发降级

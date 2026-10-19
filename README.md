@@ -44,12 +44,18 @@ rednote_go/
 
 ## 工程化
 
-- 优雅关闭：监听 SIGINT / SIGTERM，15 秒超时内完成 `http.Server.Shutdown`
+- HTTP 状态码：按业务 code 映射 400/401/403/404/429/500，保持 JSON 信封
 - 路由级鉴权：`OptionalAuth`（公开接口解析用户）与 `RequireAuth`（写接口强制登录）
-- 用户响应统一走 `models/resp.UserResponse`，不直接暴露 GORM 模型
+- JWT：锁定 HS256、7 天有效期、登出写入 Redis 黑名单；封禁用户拒绝登录态
+- CORS：显式白名单（Web 5173 / 桌面开发 5174 / Electron file:// 的 `null`），不使用通配符 + credentials
+- 错误隐藏：内部异常只记录日志，客户端统一收到“服务器内部错误”
+- 上传：请求体与文件流双重 20MB 限制；笔记图片只允许引用 `/uploads/` 下的图片
 - 关注/粉丝使用冗余计数，Follow/Unfollow 在事务内完成，重复操作幂等
-- 笔记详情缓存使用 `singleflight` 防击穿；限流按登录用户优先、未登录按 IP
-- CI：Go vet / build / test（PostgreSQL service）+ Web 构建 + 桌面端构建
+- 评论删除：一级评论级联隐藏回复，并按实际条数扣减计数
+- 笔记详情缓存使用 `singleflight` 防击穿；限流按登录用户优先、未登录按 IP（Lua 原子 INCR+EXPIRE）
+- 健康检查：`/healthz`（进程存活）、`/readyz`（PostgreSQL，可选 Redis/ES）
+- 用户响应统一走 `models/resp.UserResponse`，不直接暴露 GORM 模型
+- CI：Go vet / build / test（PostgreSQL + Redis + ES service）+ Web 构建 + 桌面端构建
 
 ## 依赖下载
 

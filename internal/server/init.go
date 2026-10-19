@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -16,16 +17,17 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-func Init() {
+func Init() error {
 	if err := config.Init(); err != nil {
-		panic("加载配置失败: " + err.Error())
+		return fmt.Errorf("加载配置失败: %w", err)
 	}
 	if err := initDB(); err != nil {
-		panic("连接数据库失败: " + err.Error())
+		return fmt.Errorf("连接数据库失败: %w", err)
 	}
 	services.FollowService.BackfillCounts()
 	initRedis()
 	initElasticsearch()
+	return nil
 }
 
 // initElasticsearch ES 是搜索加速层：连不上只警告，搜索降级为数据库模糊匹配

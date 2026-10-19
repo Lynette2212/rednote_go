@@ -69,20 +69,36 @@ func NewRouter() *gin.Engine {
 	app.MaxMultipartMemory = 8 << 20
 
 	corsConfig := cors.Config{
-		AllowOrigins:     conf.AllowedOrigins,
-		AllowCredentials: true,
+		// 前端使用 Bearer Token，不依赖 Cookie，因此无需 credentials；
+		// 避免 "*" + AllowCredentials 的非法组合。
+		AllowCredentials: false,
 		MaxAge:           600,
 		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions, http.MethodHead},
 		AllowHeaders:     []string{"*"},
 	}
-	if len(corsConfig.AllowOrigins) == 0 {
+	if len(conf.AllowedOrigins) == 0 || (len(conf.AllowedOrigins) == 1 && conf.AllowedOrigins[0] == "*") {
 		corsConfig.AllowAllOrigins = true
-		corsConfig.AllowCredentials = false
+	} else {
+		// gin-contrib/cors 不接受字面量 "null"（Electron file:// 的 Origin），
+		// 用 AllowOriginFunc 做精确匹配，不触发库的 origin 格式校验。
+		allowed := append([]string(nil), conf.AllowedOrigins...)
+		corsConfig.AllowOriginFunc = func(origin string) bool {
+			for _, item := range allowed {
+				if origin == item {
+					return true
+				}
+			}
+			return false
+		}
 	}
 	app.Use(cors.New(corsConfig))
 
 	// 上传文件静态访问
 	app.Static("/uploads", conf.UploadDir)
+
+	// 健康检查：不经过鉴权与限流
+	app.GET("/healthz", api.Healthz)
+	app.GET("/readyz", api.Readyz)
 
 	// 全 API 宽松限流；登录/注册在路由上叠加更严格的一档
 	apiLimit := middleware.RateLimit("api", func() int { return config.Instance.RateLimit.ApiPerMin })
@@ -127,6 +143,7 @@ func registerAPIRoutes(group *gin.RouterGroup, authLimit gin.HandlerFunc) {
 	protected := group.Group("", middleware.RequireAuth())
 	protected.GET("/user/info", api.UserInfo)
 	protected.POST("/user/update", api.UserUpdateProfile)
+	protected.POST("/logout", api.Logout)
 	protected.POST("/note/create", api.NoteCreate)
 	protected.GET("/note/follow_feed", api.NoteFollowFeed)
 	protected.GET("/note/user_likes", api.NoteUserLikes)

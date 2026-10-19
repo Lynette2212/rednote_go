@@ -1,5 +1,10 @@
 package errs
 
+import (
+	"errors"
+	"log/slog"
+)
+
 type CodeError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
@@ -17,10 +22,13 @@ func FromError(err error) *CodeError {
 	if err == nil {
 		return nil
 	}
-	if ce, ok := err.(*CodeError); ok {
+	var ce *CodeError
+	if errors.As(err, &ce) {
 		return ce
 	}
-	return NewError(CodeInternalError, err.Error())
+	// 内部错误只落日志，响应统一返回通用文案，避免泄露 SQL/驱动细节
+	slog.Error("内部错误", "err", err)
+	return NewError(CodeInternalError, "服务器内部错误")
 }
 
 const (

@@ -33,7 +33,24 @@ func Bind(ctx *gin.Context, obj interface{}) error {
 }
 
 func WriteJSON(ctx *gin.Context, result interface{}) {
-	ctx.JSON(http.StatusOK, buildJSONResult(result))
+	payload := buildJSONResult(result)
+	ctx.JSON(httpStatusFromCode(payload.Code), payload)
+}
+
+// httpStatusFromCode 把业务 code 映射为 HTTP 状态，便于代理/监控/客户端正确识别
+func httpStatusFromCode(code int) int {
+	switch code {
+	case errs.CodeSuccess:
+		return http.StatusOK
+	case errs.CodeParamsError, errs.CodeNotLogin, errs.CodeNoPermission,
+		errs.CodeNotFound, errs.CodeTooManyRequests, errs.CodeInternalError:
+		return code
+	default:
+		if code >= 400 && code < 600 {
+			return code
+		}
+		return http.StatusInternalServerError
+	}
 }
 
 func buildJSONResult(result interface{}) *JsonResult {

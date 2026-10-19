@@ -1,6 +1,9 @@
 package api
 
 import (
+	"strings"
+	"time"
+
 	"rednote/internal/models/req"
 	"rednote/internal/models/resp"
 	"rednote/internal/pkg/common"
@@ -60,4 +63,15 @@ func UserInfo(ctx *gin.Context) {
 		return
 	}
 	ginx.WriteJSON(ctx, resp.NewUserResponse(user))
+}
+
+// Logout 将当前 token 加入黑名单（依赖 Redis；未启用时仅客户端删除 token）
+func Logout(ctx *gin.Context) {
+	tokenStr := strings.TrimSpace(strings.TrimPrefix(ctx.GetHeader("Authorization"), "Bearer "))
+	if tokenStr != "" {
+		if claims, err := token.Parse(tokenStr); err == nil && claims.ExpiresAt != nil {
+			token.Revoke(ctx.Request.Context(), tokenStr, time.Until(claims.ExpiresAt.Time))
+		}
+	}
+	ginx.WriteJSON(ctx, nil)
 }

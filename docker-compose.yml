@@ -83,7 +83,7 @@ services:
       elasticsearch:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8082/api/note/feed"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8082/healthz"]
       interval: 10s
       timeout: 3s
       retries: 5

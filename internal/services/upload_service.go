@@ -41,11 +41,11 @@ var allowedImageMIMEs = map[string]string{
 	"image/webp": ".webp",
 }
 
-const maxUploadSize = 20 << 20 // 20MB
+const MaxImageUploadSize = 20 << 20 // 20MB
 
 // SaveImage 保存上传的图片，返回可访问的 URL 路径
 func (s *uploadService) SaveImage(file multipart.File, header *multipart.FileHeader) (string, error) {
-	if header.Size > maxUploadSize {
+	if header.Size > MaxImageUploadSize {
 		return "", errs.ParamsError("图片不能超过 20MB")
 	}
 	ext := strings.ToLower(filepath.Ext(header.Filename))
@@ -83,10 +83,17 @@ func (s *uploadService) SaveImage(file multipart.File, header *multipart.FileHea
 	if err != nil {
 		return "", err
 	}
-	if _, err := io.Copy(dst, file); err != nil {
+	// header.Size 由客户端提供，不可信；用 LimitReader 强制上限，避免超大文件占满磁盘
+	written, err := io.Copy(dst, io.LimitReader(file, MaxImageUploadSize+1))
+	if err != nil {
 		dst.Close()
-		os.Remove(absPath) // 写入失败不留半成品
+		os.Remove(absPath)
 		return "", err
+	}
+	if written > MaxImageUploadSize {
+		dst.Close()
+		os.Remove(absPath)
+		return "", errs.ParamsError("图片不能超过 20MB")
 	}
 	if err := dst.Close(); err != nil {
 		os.Remove(absPath)

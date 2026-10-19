@@ -59,6 +59,10 @@ func (s *userService) SignUp(username, nickname, password string) (*models.User,
 		UpdateTime: now,
 	}
 	if err := repositories.UserRepository.Create(sqls.DB(), user); err != nil {
+		// 并发注册时唯一索引会兜底；把唯一冲突转换成友好的业务错误
+		if s.GetByUsername(username) != nil {
+			return nil, errs.ParamsError("用户名已存在")
+		}
 		return nil, err
 	}
 	return user, nil

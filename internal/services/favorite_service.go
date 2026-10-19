@@ -52,7 +52,7 @@ func (s *favoriteService) Favorite(userId, noteId int64) error {
 			return err
 		}
 		return repositories.NoteRepository.Updates(tx, noteId,
-			map[string]interface{}{"favorite_count": note.FavoriteCount + 1})
+			map[string]interface{}{"favorite_count": gorm.Expr("favorite_count + 1")})
 	})
 	if err == nil {
 		NoteService.InvalidateNoteCache(noteId)
@@ -62,7 +62,7 @@ func (s *favoriteService) Favorite(userId, noteId int64) error {
 
 func (s *favoriteService) Unfavorite(userId, noteId int64) error {
 	err := sqls.DB().Transaction(func(tx *gorm.DB) error {
-		note, err := repositories.NoteRepository.GetForUpdate(tx, noteId)
+		_, err := repositories.NoteRepository.GetForUpdate(tx, noteId)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil
@@ -75,12 +75,8 @@ func (s *favoriteService) Unfavorite(userId, noteId int64) error {
 			return nil // 未收藏，幂等
 		}
 		repositories.FavoriteRepository.Delete(tx, favorite.Id)
-		count := note.FavoriteCount - 1
-		if count < 0 {
-			count = 0
-		}
 		return repositories.NoteRepository.Updates(tx, noteId,
-			map[string]interface{}{"favorite_count": count})
+			map[string]interface{}{"favorite_count": gorm.Expr("GREATEST(favorite_count - 1, 0)")})
 	})
 	if err == nil {
 		NoteService.InvalidateNoteCache(noteId)
@@ -93,9 +89,8 @@ func (s *favoriteService) GetFavoritedNoteIds(userId int64, noteIds []int64) map
 	if userId <= 0 || len(noteIds) == 0 {
 		return ret
 	}
-	// FavoriteRepository 没有 Find，用 FindPageByCnd 大页查询代替
-	list, _ := repositories.FavoriteRepository.FindPageByCnd(sqls.DB(),
-		sqls.NewCnd().Eq("user_id", userId).In("note_id", noteIds).Page(1, len(noteIds)))
+	list := repositories.FavoriteRepository.Find(sqls.DB(),
+		sqls.NewCnd().Eq("user_id", userId).In("note_id", noteIds))
 	for _, f := range list {
 		ret[f.NoteId] = true
 	}
