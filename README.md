@@ -110,7 +110,7 @@ npm run dev
 - 笔记详情缓存使用 `singleflight` 防击穿；限流按登录用户优先、未登录按 IP（Lua 原子 INCR+EXPIRE）
 - 健康检查：`/healthz`（进程存活）、`/readyz`（PostgreSQL，可选 Redis/ES）
 - 用户响应统一走 `models/resp.UserResponse`，不直接暴露 GORM 模型
-- CI：Go vet / build / test（PostgreSQL + Redis + ES service）+ Web 构建
+- CI：Go vet / build / test（PostgreSQL service）+ Web 构建
 
 ## 说明
 
