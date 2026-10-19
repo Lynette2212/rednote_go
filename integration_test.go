@@ -441,6 +441,70 @@ func TestFeedPagination(t *testing.T) {
 	}
 }
 
+// ---------- 关注 ----------
+
+func TestFollowCountsAndIdempotency(t *testing.T) {
+	e := newTestEnv(t)
+	tokenA, userA := e.register("follow_a")
+	_, userB := e.register("follow_b")
+
+	// 未登录不能关注
+	if resp := e.do(http.MethodPost, "/api/follow/add", "", map[string]interface{}{
+		"userId": userB,
+	}); resp.Code != 401 {
+		t.Fatalf("未登录关注应返回 401，实际 code=%d", resp.Code)
+	}
+
+	follow := func(token string, target int64) apiResp {
+		return e.do(http.MethodPost, "/api/follow/add", token, map[string]interface{}{"userId": target})
+	}
+	unfollow := func(token string, target int64) apiResp {
+		return e.do(http.MethodPost, "/api/follow/remove", token, map[string]interface{}{"userId": target})
+	}
+
+	e.mustOK(follow(tokenA, userB), "关注")
+	// 重复关注必须幂等，计数不能加两次
+	e.mustOK(follow(tokenA, userB), "重复关注")
+	// 不能关注自己
+	if resp := follow(tokenA, userA); resp.Success {
+		t.Fatal("关注自己竟然成功")
+	}
+
+	var profile struct {
+		User struct {
+			FollowingCount int64 `json:"followingCount"`
+			FansCount      int64 `json:"fansCount"`
+		} `json:"user"`
+		FollowingCount int64 `json:"followingCount"`
+		FansCount      int64 `json:"fansCount"`
+		Following      bool  `json:"following"`
+	}
+
+	resp := e.do(http.MethodGet, fmt.Sprintf("/api/user/profile/%d", userB), tokenA, nil)
+	e.mustOK(resp, "被关注者主页")
+	resp.into(t, &profile)
+	if profile.FansCount != 1 || profile.User.FansCount != 1 || !profile.Following {
+		t.Fatalf("被关注者粉丝数异常: top=%d user=%d following=%v", profile.FansCount, profile.User.FansCount, profile.Following)
+	}
+
+	resp = e.do(http.MethodGet, fmt.Sprintf("/api/user/profile/%d", userA), tokenA, nil)
+	e.mustOK(resp, "关注者主页")
+	resp.into(t, &profile)
+	if profile.FollowingCount != 1 || profile.User.FollowingCount != 1 {
+		t.Fatalf("关注者关注数异常: top=%d user=%d", profile.FollowingCount, profile.User.FollowingCount)
+	}
+
+	e.mustOK(unfollow(tokenA, userB), "取关")
+	e.mustOK(unfollow(tokenA, userB), "重复取关")
+
+	resp = e.do(http.MethodGet, fmt.Sprintf("/api/user/profile/%d", userB), tokenA, nil)
+	e.mustOK(resp, "取关后被关注者主页")
+	resp.into(t, &profile)
+	if profile.FansCount != 0 || profile.Following {
+		t.Fatalf("取关后粉丝数异常: fans=%d following=%v", profile.FansCount, profile.Following)
+	}
+}
+
 // ---------- 上传校验（① 的 MIME 嗅探） ----------
 
 func TestUploadRejectsFakeImage(t *testing.T) {

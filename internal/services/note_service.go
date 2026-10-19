@@ -15,6 +15,8 @@ import (
 	"rednote/internal/pkg/es"
 	"rednote/internal/pkg/sqls"
 	"rednote/internal/repositories"
+
+	"golang.org/x/sync/singleflight"
 )
 
 var NoteService = newNoteService()
@@ -32,23 +34,40 @@ func (s *noteService) Get(id int64) *models.Note {
 
 const noteCacheTTL = 5 * time.Minute
 
+var noteCacheGroup singleflight.Group
+
 // GetCached 笔记详情缓存（cache-aside）：命中直接返回；未命中回源数据库并写回缓存。
-// TTL 只是兜底，真正的数据新鲜度由各处变更后的 InvalidateNoteCache 保证。
+// singleflight 防止热点 key 过期瞬间的并发穿透。
 func (s *noteService) GetCached(ctx context.Context, id int64) *models.Note {
 	key := cache.NoteKey(id)
+	if note := readNoteCache(ctx, key); note != nil {
+		return note
+	}
+
+	value, _, _ := noteCacheGroup.Do(key, func() (interface{}, error) {
+		if note := readNoteCache(ctx, key); note != nil {
+			return note, nil
+		}
+		note := s.Get(id)
+		if note != nil && note.Status != constants.StatusDeleted {
+			if raw, err := json.Marshal(note); err == nil {
+				cache.Set(ctx, key, string(raw), noteCacheTTL)
+			}
+		}
+		return note, nil
+	})
+	note, _ := value.(*models.Note)
+	return note
+}
+
+func readNoteCache(ctx context.Context, key string) *models.Note {
 	if raw, ok := cache.Get(ctx, key); ok {
 		note := &models.Note{}
 		if err := json.Unmarshal([]byte(raw), note); err == nil {
 			return note
 		}
 	}
-	note := s.Get(id)
-	if note != nil && note.Status != constants.StatusDeleted {
-		if raw, err := json.Marshal(note); err == nil {
-			cache.Set(ctx, key, string(raw), noteCacheTTL)
-		}
-	}
-	return note
+	return nil
 }
 
 // InvalidateNoteCache 计数/状态变化后删除缓存，下次读取自动回源

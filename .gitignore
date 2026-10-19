@@ -8,3 +8,9 @@ desktop/dist/
 desktop/dist-electron/
 desktop/native/build/
 desktop/native/third_party/
+
+项目改进评估报告.md
+desktop/.env
+desktop/.env.local
+web/.env
+web/.env.local

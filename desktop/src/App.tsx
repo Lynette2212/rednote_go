@@ -3,7 +3,7 @@ import type { WheelEvent } from 'react'
 import PlayerView from './PlayerView'
 import type { FeedResponse, Note, UserProfile } from './types'
 
-const API_BASE = 'http://127.0.0.1:8082'
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8082'
 
 function assetUrl(path?: string) {
   if (!path)

@@ -1,10 +1,14 @@
 package server
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"rednote/internal/handlers/api"
@@ -27,10 +31,27 @@ func NewServer() {
 		Handler:           NewRouter(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
-	slog.Info("服务启动", "addr", srv.Addr)
-	if err := srv.ListenAndServe(); err != nil {
-		os.Exit(-1)
+
+	go func() {
+		slog.Info("服务启动", "addr", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("服务异常退出", "err", err)
+			os.Exit(-1)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	slog.Info("收到退出信号，开始优雅关闭")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		slog.Error("优雅关闭超时", "err", err)
+		return
 	}
+	slog.Info("服务已关闭")
 }
 
 // NewRouter 构建路由；集成测试可直接复用
@@ -66,7 +87,7 @@ func NewRouter() *gin.Engine {
 	// 全 API 宽松限流；登录/注册在路由上叠加更严格的一档
 	apiLimit := middleware.RateLimit("api", func() int { return config.Instance.RateLimit.ApiPerMin })
 	authLimit := middleware.RateLimit("auth", func() int { return config.Instance.RateLimit.AuthPerMin })
-	registerAPIRoutes(app.Group("/api", middleware.AuthMiddleware, apiLimit), authLimit)
+	registerAPIRoutes(app.Group("/api", middleware.OptionalAuth, apiLimit), authLimit)
 
 	app.NoRoute(func(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, errs.NotFound("接口不存在"))
@@ -91,32 +112,33 @@ func bodyLimit(limit int64) gin.HandlerFunc {
 func registerAPIRoutes(group *gin.RouterGroup, authLimit gin.HandlerFunc) {
 	group.POST("/register", authLimit, api.Register)
 	group.POST("/login", authLimit, api.Login)
-	group.GET("/user/info", api.UserInfo)
-	group.POST("/user/update", api.UserUpdateProfile)
 	group.GET("/user/profile/:id", api.UserProfile)
 
 	noteGroup := group.Group("/note")
-	noteGroup.POST("/create", api.NoteCreate)
 	noteGroup.GET("/feed", api.NoteFeed)
-	noteGroup.GET("/follow_feed", api.NoteFollowFeed)
 	noteGroup.GET("/user_notes", api.NoteUserNotes)
-	noteGroup.GET("/user_likes", api.NoteUserLikes)
-	noteGroup.GET("/user_favorites", api.NoteUserFavorites)
 	noteGroup.GET("/search", api.NoteSearch)
-	noteGroup.POST("/delete/:id", api.NoteDelete)
 	noteGroup.GET("/:id", api.NoteDetail)
 
 	commentGroup := group.Group("/comment")
-	commentGroup.POST("/create", api.CommentCreate)
 	commentGroup.GET("/list", api.CommentList)
-	commentGroup.POST("/delete/:id", api.CommentDelete)
 
-	group.POST("/like/add", api.LikeAdd)
-	group.POST("/like/remove", api.LikeRemove)
-	group.POST("/favorite/add", api.FavoriteAdd)
-	group.POST("/favorite/remove", api.FavoriteRemove)
-	group.POST("/follow/add", api.FollowAdd)
-	group.POST("/follow/remove", api.FollowRemove)
-
-	group.POST("/upload", api.Upload)
+	// 以下接口必须登录；RequireAuth 在路由层统一兜底
+	protected := group.Group("", middleware.RequireAuth())
+	protected.GET("/user/info", api.UserInfo)
+	protected.POST("/user/update", api.UserUpdateProfile)
+	protected.POST("/note/create", api.NoteCreate)
+	protected.GET("/note/follow_feed", api.NoteFollowFeed)
+	protected.GET("/note/user_likes", api.NoteUserLikes)
+	protected.GET("/note/user_favorites", api.NoteUserFavorites)
+	protected.POST("/note/delete/:id", api.NoteDelete)
+	protected.POST("/comment/create", api.CommentCreate)
+	protected.POST("/comment/delete/:id", api.CommentDelete)
+	protected.POST("/like/add", api.LikeAdd)
+	protected.POST("/like/remove", api.LikeRemove)
+	protected.POST("/favorite/add", api.FavoriteAdd)
+	protected.POST("/favorite/remove", api.FavoriteRemove)
+	protected.POST("/follow/add", api.FollowAdd)
+	protected.POST("/follow/remove", api.FollowRemove)
+	protected.POST("/upload", api.Upload)
 }

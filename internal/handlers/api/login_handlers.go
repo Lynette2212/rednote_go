@@ -2,6 +2,7 @@ package api
 
 import (
 	"rednote/internal/models/req"
+	"rednote/internal/models/resp"
 	"rednote/internal/pkg/common"
 	"rednote/internal/pkg/errs"
 	"rednote/internal/pkg/ginx"
@@ -28,7 +29,7 @@ func Register(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, err)
 		return
 	}
-	ginx.WriteJSON(ctx, gin.H{"token": tokenStr, "user": user})
+	ginx.WriteJSON(ctx, gin.H{"token": tokenStr, "user": resp.NewUserResponse(user)})
 }
 
 // Login 登录
@@ -48,7 +49,7 @@ func Login(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, err)
 		return
 	}
-	ginx.WriteJSON(ctx, gin.H{"token": tokenStr, "user": user})
+	ginx.WriteJSON(ctx, gin.H{"token": tokenStr, "user": resp.NewUserResponse(user)})
 }
 
 // UserInfo 当前登录用户信息
@@ -58,5 +59,5 @@ func UserInfo(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, errs.NotLogin())
 		return
 	}
-	ginx.WriteJSON(ctx, user)
+	ginx.WriteJSON(ctx, resp.NewUserResponse(user))
 }

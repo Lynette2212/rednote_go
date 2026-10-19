@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"rednote/internal/pkg/cache"
+	"rednote/internal/pkg/common"
 	"rednote/internal/pkg/errs"
 	"rednote/internal/pkg/ginx"
 
@@ -25,8 +26,12 @@ func RateLimit(scope string, limitPerMin func() int) gin.HandlerFunc {
 			ctx.Next()
 			return
 		}
-		// 固定窗口：分钟级 key，首次自增时设置过期
-		key := fmt.Sprintf("rednote:ratelimit:%s:%s:%s", scope, ctx.ClientIP(), time.Now().Format("200601021504"))
+		// 已登录按用户维度限流，未登录按 IP；固定窗口：分钟级 key，首次自增时设置过期
+		identity := fmt.Sprintf("ip:%s", ctx.ClientIP())
+		if user := common.GetCurrentUser(ctx); user != nil {
+			identity = fmt.Sprintf("user:%d", user.Id)
+		}
+		key := fmt.Sprintf("rednote:ratelimit:%s:%s:%s", scope, identity, time.Now().Format("200601021504"))
 		n, err := cache.Incr(ctx.Request.Context(), key, 2*time.Minute)
 		if err != nil {
 			ctx.Next()

@@ -2,6 +2,7 @@ package api
 
 import (
 	"rednote/internal/models/req"
+	"rednote/internal/models/resp"
 	"rednote/internal/pkg/common"
 	"rednote/internal/pkg/errs"
 	"rednote/internal/pkg/ginx"
@@ -25,7 +26,7 @@ func UserProfile(ctx *gin.Context) {
 		currentUserId = currentUser.Id
 	}
 	ginx.WriteJSON(ctx, gin.H{
-		"user":           user,
+		"user":           resp.NewUserResponse(user),
 		"noteCount":      services.FollowService.NoteCount(userId),
 		"followingCount": services.FollowService.FollowingCount(userId),
 		"fansCount":      services.FollowService.FansCount(userId),
@@ -50,5 +51,5 @@ func UserUpdateProfile(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, err)
 		return
 	}
-	ginx.WriteJSON(ctx, services.UserService.Get(user.Id))
+	ginx.WriteJSON(ctx, resp.NewUserResponse(services.UserService.Get(user.Id)))
 }

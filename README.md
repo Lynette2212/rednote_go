@@ -42,6 +42,15 @@ rednote_go/
 - Redis：信息流缓存（30s）与接口限流
 - Elasticsearch：笔记全文检索索引（发布/删除自动同步，启动时回填）
 
+## 工程化
+
+- 优雅关闭：监听 SIGINT / SIGTERM，15 秒超时内完成 `http.Server.Shutdown`
+- 路由级鉴权：`OptionalAuth`（公开接口解析用户）与 `RequireAuth`（写接口强制登录）
+- 用户响应统一走 `models/resp.UserResponse`，不直接暴露 GORM 模型
+- 关注/粉丝使用冗余计数，Follow/Unfollow 在事务内完成，重复操作幂等
+- 笔记详情缓存使用 `singleflight` 防击穿；限流按登录用户优先、未登录按 IP
+- CI：Go vet / build / test（PostgreSQL service）+ Web 构建 + 桌面端构建
+
 ## 依赖下载
 
 - FFmpeg 8.1 shared dev（Windows x64）
@@ -101,6 +110,12 @@ npm install
 npm run build:native
 npm run build
 npm start
+```
+
+后端地址默认 `http://127.0.0.1:8082`，可通过 `desktop/.env` 覆盖：
+
+```bash
+VITE_API_BASE=http://127.0.0.1:8082
 ```
 
 生成 `electron.lib`（PowerShell / Git Bash，需 VS 的 dumpbin 与 lib 在 PATH）：

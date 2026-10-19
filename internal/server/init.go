@@ -23,6 +23,7 @@ func Init() {
 	if err := initDB(); err != nil {
 		panic("连接数据库失败: " + err.Error())
 	}
+	services.FollowService.BackfillCounts()
 	initRedis()
 	initElasticsearch()
 }

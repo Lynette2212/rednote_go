@@ -14,15 +14,18 @@ type Model struct {
 
 type User struct {
 	Model
-	Username   string `gorm:"uniqueIndex;size:32;not null" json:"username"`
-	Nickname   string `gorm:"size:32" json:"nickname"`
-	Avatar     string `gorm:"size:256" json:"avatar"`
-	Bio        string `gorm:"size:512" json:"bio"`
-	Gender     int    `gorm:"default:0" json:"gender"` // 0保密 1男 2女
-	Password   string `gorm:"size:128" json:"-"`
-	Status     int    `gorm:"default:0" json:"status"`
-	CreateTime int64  `gorm:"not null;default:0" json:"createTime"`
-	UpdateTime int64  `gorm:"not null;default:0" json:"updateTime"`
+	Username string `gorm:"uniqueIndex;size:32;not null" json:"username"`
+	Nickname string `gorm:"size:32" json:"nickname"`
+	Avatar   string `gorm:"size:256" json:"avatar"`
+	Bio      string `gorm:"size:512" json:"bio"`
+	Gender   int    `gorm:"default:0" json:"gender"` // 0保密 1男 2女
+	Password string `gorm:"size:128" json:"-"`
+	Status   int    `gorm:"default:0" json:"status"`
+	// 冗余计数：关注/粉丝数在 Follow/Unfollow 事务内维护，避免主页实时 COUNT
+	FollowingCount int64 `gorm:"default:0" json:"followingCount"`
+	FansCount      int64 `gorm:"default:0" json:"fansCount"`
+	CreateTime     int64 `gorm:"not null;default:0" json:"createTime"`
+	UpdateTime     int64 `gorm:"not null;default:0" json:"updateTime"`
 }
 
 type Note struct {
