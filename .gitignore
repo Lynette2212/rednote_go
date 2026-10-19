@@ -8,3 +8,5 @@ desktop/dist/
 desktop/dist-electron/
 desktop/native/build/
 desktop/native/third_party/
+__pycache__/
+*.pyc
