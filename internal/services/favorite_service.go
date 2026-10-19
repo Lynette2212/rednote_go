@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"rednote/internal/models"
+	"rednote/internal/models/constants"
 	"rednote/internal/pkg/errs"
 	"rednote/internal/pkg/sqls"
 	"rednote/internal/repositories"
@@ -36,7 +37,7 @@ func (s *favoriteService) Favorite(userId, noteId int64) error {
 			}
 			return err
 		}
-		if note.Status == models.StatusDeleted {
+		if note.Status == constants.StatusDeleted {
 			return errs.NotFound("笔记不存在")
 		}
 		if repositories.FavoriteRepository.FindOne(tx,

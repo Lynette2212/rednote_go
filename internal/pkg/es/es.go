@@ -213,8 +213,8 @@ func SearchNoteIds(ctx context.Context, keyword string, from, size int) ([]int64
 			"_score",
 			map[string]interface{}{"createTime": map[string]interface{}{"order": "desc"}},
 		},
-		"from": from,
-		"size": size,
+		"from":             from,
+		"size":             size,
 		"track_total_hits": true,
 	}
 	body, err := json.Marshal(query)

@@ -77,10 +77,10 @@ func (s *userService) SignIn(username, password string) (*models.User, error) {
 
 func (s *userService) UpdateProfile(userId int64, nickname, avatar, bio string, gender int) error {
 	columns := map[string]interface{}{
-		"nickname":   strings.TrimSpace(nickname),
-		"avatar":     avatar,
-		"bio":        strings.TrimSpace(bio),
-		"gender":     gender,
+		"nickname":    strings.TrimSpace(nickname),
+		"avatar":      avatar,
+		"bio":         strings.TrimSpace(bio),
+		"gender":      gender,
 		"update_time": time.Now().UnixMilli(),
 	}
 	return repositories.UserRepository.Updates(sqls.DB(), userId, columns)

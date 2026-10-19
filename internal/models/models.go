@@ -10,10 +10,7 @@ type Model struct {
 	Id int64 `gorm:"primaryKey;autoIncrement" json:"id" form:"id"`
 }
 
-const (
-	StatusOk      = 0 // 正常
-	StatusDeleted = 1 // 删除
-)
+// 通用状态常量见 models/constants。
 
 type User struct {
 	Model
@@ -45,13 +42,13 @@ type Note struct {
 
 type Comment struct {
 	Model
-	NoteId         int64  `gorm:"index;not null" json:"noteId"`
-	UserId         int64  `gorm:"index;not null" json:"userId"`
-	ParentId       int64  `gorm:"default:0;index" json:"parentId"`     // 父评论 id，0 为一级评论
-	ReplyToUserId  int64  `gorm:"default:0" json:"replyToUserId"`      // 被回复的用户
-	Content        string `gorm:"type:text" json:"content"`
-	Status         int    `gorm:"default:0" json:"status"`
-	CreateTime     int64  `gorm:"not null;default:0" json:"createTime"`
+	NoteId        int64  `gorm:"index;not null" json:"noteId"`
+	UserId        int64  `gorm:"index;not null" json:"userId"`
+	ParentId      int64  `gorm:"default:0;index" json:"parentId"` // 父评论 id，0 为一级评论
+	ReplyToUserId int64  `gorm:"default:0" json:"replyToUserId"`  // 被回复的用户
+	Content       string `gorm:"type:text" json:"content"`
+	Status        int    `gorm:"default:0" json:"status"`
+	CreateTime    int64  `gorm:"not null;default:0" json:"createTime"`
 }
 
 type UserLike struct {

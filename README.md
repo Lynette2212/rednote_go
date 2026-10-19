@@ -6,8 +6,33 @@
 |---|---|---|
 | `web/` | React 18 + TypeScript + Vite | Web 前端 |
 | `desktop/` | Electron 44 + React 18 + TypeScript | 桌面端；自研 FFmpeg 8.1 播放内核 |
-| `internal/` | Go + Gin + GORM | 后端 API |
+| `internal/` | Go + Gin + GORM | 后端 API（分层参考 bbs-go） |
 | `docker-compose.yml` | PostgreSQL / Redis / Elasticsearch | 基础设施 |
+
+## 目录结构
+
+```text
+rednote_go/
+├── main.go                  # 服务入口（与 bbs-go 一致）
+├── internal/
+│   ├── handlers/api/        # HTTP 处理器
+│   ├── services/            # 业务逻辑
+│   ├── repositories/        # 数据访问
+│   ├── models/
+│   │   ├── constants/       # 状态等常量
+│   │   ├── req/             # 请求 DTO
+│   │   └── resp/            # 响应 DTO
+│   ├── middleware/
+│   ├── server/              # 初始化与路由
+│   └── pkg/                 # cache / es / token 等基础设施
+├── web/                     # React Web
+├── desktop/                 # Electron 桌面端
+│   └── native/              # FFmpeg 播放内核（Node-API）
+├── docker-compose.yml
+└── rednote.example.yaml
+```
+
+运行时上传文件放在 `data/`，不提交到仓库。
 
 ## 功能
 
@@ -82,9 +107,5 @@ lib -def:third_party/electron/electron.def -machine:x64 -out:third_party/electro
 ## 说明
 
 - 仓库不包含 `node_modules`、构建产物、FFmpeg DLL（`avcodec-62.dll` 单文件 114MB，超过 GitHub 限制）以及数据库密码配置。
-- 桌面端点信息流封面即可打开播放器，默认播放 `desktop/assets/videos/` 下的二次元测试片。
-- 测试视频由 `tools/gen_anime.py` 程序化生成（Pillow 绘制 + 合成配乐，720×1280 / 24fps / H.264 + AAC），重新生成：
-
-```bash
-python tools/gen_anime.py
-```
+- 桌面端点信息流封面即可打开播放器，默认播放 `desktop/assets/videos/` 下的二次元测试片（樱夜 / 海边黄昏 / 霓虹雨夜）。
+- 后端按 bbs-go 的分层组织：`handlers → services → repositories → models`，常量与响应 DTO 分别在 `models/constants`、`models/resp`。

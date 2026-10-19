@@ -24,13 +24,13 @@ func FromError(err error) *CodeError {
 }
 
 const (
-	CodeSuccess          = 0
-	CodeInternalError    = 500
-	CodeParamsError      = 400
-	CodeNotLogin         = 401
-	CodeNoPermission     = 403
-	CodeNotFound         = 404
-	CodeTooManyRequests  = 429
+	CodeSuccess         = 0
+	CodeInternalError   = 500
+	CodeParamsError     = 400
+	CodeNotLogin        = 401
+	CodeNoPermission    = 403
+	CodeNotFound        = 404
+	CodeTooManyRequests = 429
 )
 
 func ParamsError(message string) *CodeError {

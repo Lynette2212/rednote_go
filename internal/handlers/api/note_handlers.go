@@ -2,6 +2,7 @@ package api
 
 import (
 	"rednote/internal/models"
+	"rednote/internal/models/constants"
 	"rednote/internal/models/req"
 	"rednote/internal/pkg/common"
 	"rednote/internal/pkg/errs"
@@ -57,7 +58,7 @@ func NoteCreate(ctx *gin.Context) {
 func NoteDetail(ctx *gin.Context) {
 	noteId := cast.ToInt64(ctx.Param("id"))
 	note := services.NoteService.GetCached(ctx.Request.Context(), noteId)
-	if note == nil || note.Status == models.StatusDeleted {
+	if note == nil || note.Status == constants.StatusDeleted {
 		ginx.WriteJSON(ctx, errs.NotFound("笔记不存在"))
 		return
 	}

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"rednote/internal/models"
+	"rednote/internal/models/constants"
 	"rednote/internal/pkg/errs"
 	"rednote/internal/pkg/sqls"
 	"rednote/internal/repositories"
@@ -76,7 +77,7 @@ func (s *followService) FansCount(userId int64) int64 {
 // NoteStats 用户的笔记数与获赞总数
 func (s *followService) NoteCount(userId int64) int64 {
 	return repositories.NoteRepository.Count(sqls.DB(),
-		sqls.NewCnd().Eq("user_id", userId).Eq("status", models.StatusOk))
+		sqls.NewCnd().Eq("user_id", userId).Eq("status", constants.StatusOk))
 }
 
 func (s *followService) LikedCount(userId int64) int64 {

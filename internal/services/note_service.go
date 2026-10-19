@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"rednote/internal/models"
+	"rednote/internal/models/constants"
+	"rednote/internal/models/resp"
 	"rednote/internal/pkg/cache"
 	"rednote/internal/pkg/errs"
 	"rednote/internal/pkg/es"
@@ -22,21 +24,6 @@ func newNoteService() *noteService {
 }
 
 type noteService struct {
-}
-
-type AuthorInfo struct {
-	Id       int64  `json:"id"`
-	Nickname string `json:"nickname"`
-	Avatar   string `json:"avatar"`
-}
-
-type NoteResponse struct {
-	*models.Note
-	Images     []string    `json:"images"`
-	Tags       []string    `json:"tags"`
-	Author     *AuthorInfo `json:"author"`
-	Liked      bool        `json:"liked"`
-	Favorited  bool        `json:"favorited"`
 }
 
 func (s *noteService) Get(id int64) *models.Note {
@@ -56,7 +43,7 @@ func (s *noteService) GetCached(ctx context.Context, id int64) *models.Note {
 		}
 	}
 	note := s.Get(id)
-	if note != nil && note.Status != models.StatusDeleted {
+	if note != nil && note.Status != constants.StatusDeleted {
 		if raw, err := json.Marshal(note); err == nil {
 			cache.Set(ctx, key, string(raw), noteCacheTTL)
 		}
@@ -104,14 +91,14 @@ func (s *noteService) Publish(userId int64, title, content string, images, tags 
 
 func (s *noteService) Delete(userId, noteId int64) error {
 	note := s.Get(noteId)
-	if note == nil || note.Status == models.StatusDeleted {
+	if note == nil || note.Status == constants.StatusDeleted {
 		return errs.NotFound("笔记不存在")
 	}
 	if note.UserId != userId {
 		return errs.NoPermission()
 	}
 	if err := repositories.NoteRepository.Updates(sqls.DB(), noteId, map[string]interface{}{
-		"status":      models.StatusDeleted,
+		"status":      constants.StatusDeleted,
 		"update_time": time.Now().UnixMilli(),
 	}); err != nil {
 		return err
@@ -184,7 +171,7 @@ func (s *noteService) BackfillSearchIndex() {
 		return
 	}
 	notes := repositories.NoteRepository.Find(sqls.DB(),
-		sqls.NewCnd().Eq("status", models.StatusOk))
+		sqls.NewCnd().Eq("status", constants.StatusOk))
 	for i := range notes {
 		s.indexNote(&notes[i])
 	}
@@ -205,7 +192,7 @@ func (s *noteService) Feed(page, limit int) ([]models.Note, *sqls.Paging) {
 		}
 	}
 
-	cnd := sqls.NewCnd().Eq("status", models.StatusOk).Desc("id").Page(page, limit)
+	cnd := sqls.NewCnd().Eq("status", constants.StatusOk).Desc("id").Page(page, limit)
 	notes, paging := repositories.NoteRepository.FindPageByCnd(sqls.DB(), cnd)
 	if payload, err := json.Marshal(struct {
 		Notes  []models.Note `json:"notes"`
@@ -219,7 +206,7 @@ func (s *noteService) Feed(page, limit int) ([]models.Note, *sqls.Paging) {
 // FollowFeed 关注流
 func (s *noteService) FollowFeed(userId int64, page, limit int) ([]models.Note, *sqls.Paging) {
 	followIds := FollowService.GetFollowingIds(userId)
-	cnd := sqls.NewCnd().Eq("status", models.StatusOk).Desc("id").Page(page, limit)
+	cnd := sqls.NewCnd().Eq("status", constants.StatusOk).Desc("id").Page(page, limit)
 	if len(followIds) == 0 {
 		return []models.Note{}, &sqls.Paging{Page: page, Limit: limit, Total: 0}
 	}
@@ -229,7 +216,7 @@ func (s *noteService) FollowFeed(userId int64, page, limit int) ([]models.Note, 
 
 // UserNotes 某用户的笔记
 func (s *noteService) UserNotes(userId int64, page, limit int) ([]models.Note, *sqls.Paging) {
-	cnd := sqls.NewCnd().Eq("status", models.StatusOk).Eq("user_id", userId).Desc("id").Page(page, limit)
+	cnd := sqls.NewCnd().Eq("status", constants.StatusOk).Eq("user_id", userId).Desc("id").Page(page, limit)
 	return repositories.NoteRepository.FindPageByCnd(sqls.DB(), cnd)
 }
 
@@ -264,7 +251,7 @@ func (s *noteService) notesByIds(ids []int64, paging *sqls.Paging) ([]models.Not
 		return []models.Note{}, paging
 	}
 	list := repositories.NoteRepository.Find(sqls.DB(),
-		sqls.NewCnd().Eq("status", models.StatusOk).In("id", ids).Desc("id"))
+		sqls.NewCnd().Eq("status", constants.StatusOk).In("id", ids).Desc("id"))
 	return list, paging
 }
 
@@ -273,7 +260,7 @@ func (s *noteService) Search(keyword string, page, limit int) ([]models.Note, *s
 	keyword = strings.TrimSpace(keyword)
 	if keyword == "" {
 		return repositories.NoteRepository.FindPageByCnd(sqls.DB(),
-			sqls.NewCnd().Eq("status", models.StatusOk).Desc("id").Page(page, limit))
+			sqls.NewCnd().Eq("status", constants.StatusOk).Desc("id").Page(page, limit))
 	}
 	if es.Enabled() {
 		if notes, paging := s.searchByES(keyword, page, limit); notes != nil {
@@ -282,7 +269,7 @@ func (s *noteService) Search(keyword string, page, limit int) ([]models.Note, *s
 	}
 	// 降级：数据库模糊匹配（后端换 ES 前的原始实现）
 	kw := "%" + keyword + "%"
-	cnd := sqls.NewCnd().Eq("status", models.StatusOk).Desc("id").Page(page, limit).
+	cnd := sqls.NewCnd().Eq("status", constants.StatusOk).Desc("id").Page(page, limit).
 		Where("title ILIKE ? OR content ILIKE ? OR tags ILIKE ?", kw, kw, kw)
 	return repositories.NoteRepository.FindPageByCnd(sqls.DB(), cnd)
 }
@@ -301,7 +288,7 @@ func (s *noteService) searchByES(keyword string, page, limit int) ([]models.Note
 		return []models.Note{}, paging
 	}
 	list := repositories.NoteRepository.Find(sqls.DB(),
-		sqls.NewCnd().Eq("status", models.StatusOk).In("id", ids))
+		sqls.NewCnd().Eq("status", constants.StatusOk).In("id", ids))
 	byId := make(map[int64]models.Note, len(list))
 	for _, n := range list {
 		byId[n.Id] = n
@@ -317,7 +304,7 @@ func (s *noteService) searchByES(keyword string, page, limit int) ([]models.Note
 }
 
 // BuildResponses 组装笔记响应：解析图片/标签、填充作者、当前用户点赞收藏状态
-func (s *noteService) BuildResponses(notes []models.Note, currentUserId int64) []*NoteResponse {
+func (s *noteService) BuildResponses(notes []models.Note, currentUserId int64) []*resp.NoteResponse {
 	userIds := make([]int64, 0, len(notes))
 	noteIds := make([]int64, 0, len(notes))
 	seen := map[int64]bool{}
@@ -332,7 +319,7 @@ func (s *noteService) BuildResponses(notes []models.Note, currentUserId int64) [
 	likedIds := LikeService.GetLikedNoteIds(currentUserId, noteIds)
 	favoritedIds := FavoriteService.GetFavoritedNoteIds(currentUserId, noteIds)
 
-	ret := make([]*NoteResponse, 0, len(notes))
+	ret := make([]*resp.NoteResponse, 0, len(notes))
 	for i := range notes {
 		n := &notes[i]
 		var images, tags []string
@@ -344,7 +331,7 @@ func (s *noteService) BuildResponses(notes []models.Note, currentUserId int64) [
 		if tags == nil {
 			tags = []string{}
 		}
-		resp := &NoteResponse{
+		item := &resp.NoteResponse{
 			Note:      n,
 			Images:    images,
 			Tags:      tags,
@@ -352,14 +339,14 @@ func (s *noteService) BuildResponses(notes []models.Note, currentUserId int64) [
 			Favorited: favoritedIds[n.Id],
 		}
 		if u := users[n.UserId]; u != nil {
-			resp.Author = &AuthorInfo{Id: u.Id, Nickname: u.Nickname, Avatar: u.Avatar}
+			item.Author = &resp.AuthorInfo{Id: u.Id, Nickname: u.Nickname, Avatar: u.Avatar}
 		}
-		ret = append(ret, resp)
+		ret = append(ret, item)
 	}
 	return ret
 }
 
-func (s *noteService) BuildResponse(note *models.Note, currentUserId int64) *NoteResponse {
+func (s *noteService) BuildResponse(note *models.Note, currentUserId int64) *resp.NoteResponse {
 	list := s.BuildResponses([]models.Note{*note}, currentUserId)
 	if len(list) == 0 {
 		return nil
