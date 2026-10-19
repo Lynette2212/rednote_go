@@ -68,7 +68,7 @@ func NoteDetail(ctx *gin.Context) {
 // NoteFeed 推荐流
 func NoteFeed(ctx *gin.Context) {
 	page, limit := getPageParams(ctx)
-	notes, paging := services.NoteService.Feed(page, limit)
+	notes, paging := services.NoteService.Feed(page, limit, currentUserId(ctx))
 	writeNotePage(ctx, notes, paging)
 }
 

@@ -45,8 +45,12 @@ func NoteKey(id int64) string {
 	return "rednote:note:" + strconv.FormatInt(id, 10)
 }
 
-func FeedKey(page, limit int) string {
-	return "rednote:feed:" + strconv.Itoa(page) + ":" + strconv.Itoa(limit)
+func FeedKey(page, limit int, excludeUserId int64) string {
+	key := "rednote:feed:" + strconv.Itoa(page) + ":" + strconv.Itoa(limit)
+	if excludeUserId > 0 {
+		key += ":u" + strconv.FormatInt(excludeUserId, 10)
+	}
+	return key
 }
 
 // DelPattern 按模式删除缓存（用于发布/删除笔记后失效信息流）

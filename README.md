@@ -33,6 +33,7 @@ rednote_go/
 │   ├── server/              # 初始化与路由
 │   └── pkg/                 # cache / es / token 等基础设施
 ├── web/
+│   ├── public/covers/       # 演示封面（Unsplash，见 CREDITS.md）
 │   ├── public/videos/       # 内置演示视频与封面
 │   └── src/                 # React 页面与组件
 ├── docker-compose.yml
@@ -84,6 +85,9 @@ npm run dev
 ```
 
 打开 http://127.0.0.1:5173
+
+测试账号：`demo` / `demo123`（昵称“小薯同学”）。
+登录后推荐流会自动排除自己的笔记，自己的内容在右上角「我的」里查看。
 
 生产构建时可用 `VITE_API_BASE` 指向后端地址；开发模式由 Vite 代理 `/api` 与 `/uploads`。
 

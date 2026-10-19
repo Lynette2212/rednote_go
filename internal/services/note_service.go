@@ -154,7 +154,7 @@ func (s *noteService) Delete(userId, noteId int64) error {
 
 // validUploadPath 只允许本服务上传目录或 Web 内置演示目录下的图片
 func validUploadPath(p string) bool {
-	if !(strings.HasPrefix(p, "/uploads/") || strings.HasPrefix(p, "/videos/")) ||
+	if !(strings.HasPrefix(p, "/uploads/") || strings.HasPrefix(p, "/videos/") || strings.HasPrefix(p, "/covers/")) ||
 		strings.Contains(p, "..") || strings.ContainsAny(p, "\\\x00") {
 		return false
 	}
@@ -249,10 +249,10 @@ func (s *noteService) BackfillSearchIndex() {
 	slog.Info("搜索索引回填完成", "count", len(notes))
 }
 
-// Feed 推荐流（最新优先，Redis 缓存 30 秒）
-func (s *noteService) Feed(page, limit int) ([]models.Note, *sqls.Paging) {
+// Feed 推荐流（最新优先，Redis 缓存 30 秒）；登录用户排除自己的笔记
+func (s *noteService) Feed(page, limit int, excludeUserId int64) ([]models.Note, *sqls.Paging) {
 	ctx := context.Background()
-	key := cache.FeedKey(page, limit)
+	key := cache.FeedKey(page, limit, excludeUserId)
 	if raw, ok := cache.Get(ctx, key); ok {
 		var cached struct {
 			Notes  []models.Note `json:"notes"`
@@ -263,7 +263,11 @@ func (s *noteService) Feed(page, limit int) ([]models.Note, *sqls.Paging) {
 		}
 	}
 
-	cnd := sqls.NewCnd().Eq("status", constants.StatusOk).Desc("id").Page(page, limit)
+	cnd := sqls.NewCnd().Eq("status", constants.StatusOk).Desc("id")
+	if excludeUserId > 0 {
+		cnd.NotEq("user_id", excludeUserId)
+	}
+	cnd.Page(page, limit)
 	notes, paging := repositories.NoteRepository.FindPageByCnd(sqls.DB(), cnd)
 	if payload, err := json.Marshal(struct {
 		Notes  []models.Note `json:"notes"`

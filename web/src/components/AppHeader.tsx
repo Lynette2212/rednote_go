@@ -43,7 +43,7 @@ export default function AppHeader() {
                 {menuOpen && (
                   <div className="user-menu" onMouseLeave={() => setMenuOpen(false)}>
                     <Link to={`/user/${user.id}`} onClick={() => setMenuOpen(false)}>
-                      个人主页
+                      我的
                     </Link>
                     <button
                       onClick={() => {

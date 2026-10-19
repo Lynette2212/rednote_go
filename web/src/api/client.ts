@@ -5,7 +5,7 @@ export function mediaUrl(path?: string): string {
   if (!path) return ''
   if (/^https?:\/\//.test(path)) return path
   // 演示视频与封面随 Web 一起发布
-  if (path.startsWith('/videos/')) return path
+  if (path.startsWith('/videos/') || path.startsWith('/covers/')) return path
   return `${MEDIA_BASE}${path}`
 }
 

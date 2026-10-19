@@ -105,6 +105,7 @@ func (r apiResp) into(t *testing.T, out interface{}) {
 
 type noteDTO struct {
 	Id            int64    `json:"id"`
+	UserId        int64    `json:"userId"`
 	Title         string   `json:"title"`
 	MediaType     string   `json:"mediaType"`
 	VideoUrl      string   `json:"videoUrl"`
@@ -377,6 +378,50 @@ func TestRegisterLoginAndAuth(t *testing.T) {
 		if resp := e.do(http.MethodGet, "/api/user/info", token, nil); resp.Code != 401 {
 			t.Fatalf("登出后旧 token 应失效，实际 code=%d", resp.Code)
 		}
+	}
+}
+
+func TestFeedExcludesOwnNotes(t *testing.T) {
+	e := newTestEnv(t)
+	token, userId := e.register("feed_owner")
+	mine := e.createNote(token, "只有我自己能看到的笔记")
+
+	anonymous := e.do(http.MethodGet, "/api/note/feed?page=1&limit=20", "", nil)
+	e.mustOK(anonymous, "匿名信息流")
+	var anonymousPage struct {
+		Results []noteDTO `json:"results"`
+	}
+	anonymous.into(t, &anonymousPage)
+	found := false
+	for _, note := range anonymousPage.Results {
+		if note.Id == mine.Id {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("匿名信息流应包含该笔记")
+	}
+
+	authed := e.do(http.MethodGet, "/api/note/feed?page=1&limit=20", token, nil)
+	e.mustOK(authed, "登录信息流")
+	var authedPage struct {
+		Results []noteDTO `json:"results"`
+	}
+	authed.into(t, &authedPage)
+	for _, note := range authedPage.Results {
+		if note.UserId == userId {
+			t.Fatalf("登录信息流不应包含自己的笔记: id=%d", note.Id)
+		}
+	}
+
+	profileNotes := e.do(http.MethodGet, fmt.Sprintf("/api/note/user_notes?userId=%d&page=1&limit=20", userId), token, nil)
+	e.mustOK(profileNotes, "个人主页笔记")
+	var profilePage struct {
+		Results []noteDTO `json:"results"`
+	}
+	profileNotes.into(t, &profilePage)
+	if len(profilePage.Results) != 1 || profilePage.Results[0].Id != mine.Id {
+		t.Fatalf("个人主页应显示自己的笔记，实际 %d 条", len(profilePage.Results))
 	}
 }
 
