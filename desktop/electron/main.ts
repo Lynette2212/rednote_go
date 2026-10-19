@@ -7,6 +7,8 @@ const shotArg = process.argv.find((arg) => arg.startsWith('--screenshot='))
 const shotPath = shotArg ? shotArg.slice('--screenshot='.length) : undefined
 const delayArg = process.argv.find((arg) => arg.startsWith('--shot-delay='))
 const playerMode = process.argv.includes('--player')
+const clipArg = process.argv.find((arg) => arg.startsWith('--clip='))
+const initialClip = clipArg ? Number(clipArg.split('=')[1]) || 0 : 0
 
 interface NativeFrame {
   buffer: Uint8Array
@@ -36,6 +38,16 @@ interface NativePlayer {
 
 let player: NativePlayer | null = null
 
+const demoClips = [
+  { file: 'anime_sakura.mp4', title: '樱夜' },
+  { file: 'anime_sunset.mp4', title: '海边黄昏' },
+  { file: 'anime_neon.mp4', title: '霓虹雨夜' },
+]
+
+function clipPath(index: number) {
+  return path.join(app.getAppPath(), 'assets', 'videos', demoClips[index].file)
+}
+
 function initNativePlayer() {
   try {
     const nativeDir = path.join(app.getAppPath(), 'native')
@@ -48,7 +60,13 @@ function initNativePlayer() {
     ipcMain.handle('player:open-demo', () => {
       if (!player)
         return false
-      return player.open(path.join(app.getAppPath(), 'assets', 'test.mp4'))
+      return player.open(clipPath(0))
+    })
+    ipcMain.handle('player:clips', () => demoClips.map((clip, index) => ({ index, title: clip.title })))
+    ipcMain.handle('player:open-clip', (_event, index: number) => {
+      if (!player || index < 0 || index >= demoClips.length)
+        return false
+      return player.open(clipPath(index))
     })
     ipcMain.handle('player:play', () => player?.play())
     ipcMain.handle('player:pause', () => player?.pause())
@@ -74,8 +92,15 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false,
     },
   })
+
+  if (shotPath) {
+    window.setAlwaysOnTop(true)
+    window.show()
+    window.focus()
+  }
 
   if (devServerUrl) {
     void window.loadURL(devServerUrl)
@@ -92,7 +117,7 @@ function createWindow() {
       if (playerMode) {
         setTimeout(() => {
           void window.webContents.executeJavaScript(
-            "window.dispatchEvent(new Event('rednote:open-player'))",
+            `window.dispatchEvent(new CustomEvent('rednote:open-player', { detail: { clip: ${initialClip} } }))`,
           )
         }, 1200)
       }

@@ -32,6 +32,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [playerOpen, setPlayerOpen] = useState(false)
+  const [playerClip, setPlayerClip] = useState(0)
   const wheelLock = useRef(0)
 
   useEffect(() => {
@@ -99,7 +100,11 @@ export default function App() {
   }, [move, playerOpen])
 
   useEffect(() => {
-    const openPlayer = () => setPlayerOpen(true)
+    const openPlayer = (event: Event) => {
+      const detail = (event as CustomEvent<{ clip?: number }>).detail
+      setPlayerClip(detail?.clip ?? 0)
+      setPlayerOpen(true)
+    }
     window.addEventListener('rednote:open-player', openPlayer)
     return () => window.removeEventListener('rednote:open-player', openPlayer)
   }, [])
@@ -182,7 +187,11 @@ export default function App() {
       </div>
 
       {playerOpen && (
-        <PlayerView title={note?.title ?? '播放演示'} onClose={() => setPlayerOpen(false)} />
+        <PlayerView
+          title={note?.title ?? '播放演示'}
+          initialClip={playerClip}
+          onClose={() => setPlayerOpen(false)}
+        />
       )}
     </div>
   )

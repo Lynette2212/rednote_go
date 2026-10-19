@@ -7,6 +7,8 @@ declare global {
       versions: { electron: string; chrome: string; node: string }
       player: {
         openDemo(): Promise<boolean>
+        clips(): Promise<{ index: number; title: string }[]>
+        openClip(index: number): Promise<boolean>
         play(): Promise<void>
         pause(): Promise<void>
         seek(ms: number): Promise<void>

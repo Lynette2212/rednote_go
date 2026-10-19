@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 interface PlayerViewProps {
   title: string
+  initialClip?: number
   onClose: () => void
 }
 
@@ -28,12 +29,14 @@ function formatTime(ms: number) {
   return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`
 }
 
-export default function PlayerView({ title, onClose }: PlayerViewProps) {
+export default function PlayerView({ title, initialClip = 0, onClose }: PlayerViewProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [state, setState] = useState<PlayerState>(initial)
   const [dragging, setDragging] = useState(false)
   const [dragValue, setDragValue] = useState(0)
   const [volume, setVolume] = useState(70)
+  const [clips, setClips] = useState<{ index: number; title: string }[]>([])
+  const [clipIndex, setClipIndex] = useState(0)
 
   useEffect(() => {
     const api = window.desktop?.player
@@ -76,7 +79,13 @@ export default function PlayerView({ title, onClose }: PlayerViewProps) {
     }
 
     const start = async () => {
-      const opened = await api.openDemo()
+      const list = await api.clips()
+      if (stopped)
+        return
+      setClips(list)
+      const startClip = list.length > 0 ? Math.min(Math.max(initialClip, 0), list.length - 1) : 0
+      setClipIndex(startClip)
+      const opened = list.length > 0 ? await api.openClip(startClip) : await api.openDemo()
       if (stopped)
         return
       if (!opened) {
@@ -119,6 +128,24 @@ export default function PlayerView({ title, onClose }: PlayerViewProps) {
     await window.desktop?.player.seek(dragValue)
   }
 
+  const switchClip = async (delta: number) => {
+    const api = window.desktop?.player
+    if (!api || clips.length === 0)
+      return
+    const next = (clipIndex + delta + clips.length) % clips.length
+    const opened = await api.openClip(next)
+    if (!opened) {
+      setState((current) => ({ ...current, error: '切换视频失败' }))
+      return
+    }
+    setClipIndex(next)
+    setDragging(false)
+    setDragValue(0)
+    setState({ ...initial })
+    await api.setVolume(volume)
+    await api.play()
+  }
+
   const changeVolume = async (value: number) => {
     setVolume(value)
     await window.desktop?.player.setVolume(value)
@@ -131,7 +158,9 @@ export default function PlayerView({ title, onClose }: PlayerViewProps) {
     <div className="player">
       <div className="player-top">
         <button className="back" onClick={onClose}>返回</button>
-        <span className="player-title">{title}</span>
+        <span className="player-title">{clips[clipIndex]?.title ?? title}</span>
+        <button className="ghost" onClick={() => void switchClip(-1)}>上一段</button>
+        <button className="ghost" onClick={() => void switchClip(1)}>下一段</button>
         <span className="player-badge">FFmpeg 8.1 · 软解</span>
       </div>
 

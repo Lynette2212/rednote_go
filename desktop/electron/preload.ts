@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('desktop', {
   },
   player: {
     openDemo: () => ipcRenderer.invoke('player:open-demo'),
+    clips: () => ipcRenderer.invoke('player:clips'),
+    openClip: (index: number) => ipcRenderer.invoke('player:open-clip', index),
     play: () => ipcRenderer.invoke('player:play'),
     pause: () => ipcRenderer.invoke('player:pause'),
     seek: (ms: number) => ipcRenderer.invoke('player:seek', ms),

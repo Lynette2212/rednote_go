@@ -13,6 +13,7 @@
 
 - 竖向信息流、滚轮 / 方向键切换
 - 桌面端播放器：FFmpeg 解封装 + 软解、miniaudio 音频输出、音频主时钟音画同步、暂停、精确 seek
+- 内置 3 段二次元测试视频（樱夜 / 海边黄昏 / 霓虹雨夜），支持上一段 / 下一段切换
 - Redis：信息流缓存（30s）与接口限流
 - Elasticsearch：笔记全文检索索引（发布/删除自动同步，启动时回填）
 
@@ -81,4 +82,9 @@ lib -def:third_party/electron/electron.def -machine:x64 -out:third_party/electro
 ## 说明
 
 - 仓库不包含 `node_modules`、构建产物、FFmpeg DLL（`avcodec-62.dll` 单文件 114MB，超过 GitHub 限制）以及数据库密码配置。
-- 桌面端默认播放 `desktop/assets/test.mp4`；点信息流封面即可打开播放器。
+- 桌面端点信息流封面即可打开播放器，默认播放 `desktop/assets/videos/` 下的二次元测试片。
+- 测试视频由 `tools/gen_anime.py` 程序化生成（Pillow 绘制 + 合成配乐，720×1280 / 24fps / H.264 + AAC），重新生成：
+
+```bash
+python tools/gen_anime.py
+```

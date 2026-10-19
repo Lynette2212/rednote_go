@@ -287,6 +287,7 @@ button {
   background: rgba(255, 255, 255, 0.14);
   color: #ffffff;
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .player-title {
@@ -349,6 +350,12 @@ button {
   font-size: 13px;
 }
 
+.player-top .ghost {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
 .play-button {
   height: 36px;
   padding: 0 18px;
@@ -356,6 +363,7 @@ button {
   background: #e8324f;
   color: #ffffff;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 .time {
@@ -385,4 +393,13 @@ button {
   color: #ff6b81;
   font-size: 14px;
   line-height: 1.6;
+}
+
+.ghost {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #d6d6dc;
+  font-size: 12px;
 }
