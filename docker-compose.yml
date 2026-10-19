@@ -1,0 +1,95 @@
+# 一键部署：PostgreSQL + rednote 后端
+#
+# 用法（Git Bash）：
+#   export POSTGRES_PASSWORD=$(openssl rand -hex 16)   # 数据库密码，字母数字随机串
+#   export REDNOTE_JWT_SECRET=$(openssl rand -hex 32)  # JWT 签名密钥
+#   docker compose up -d --build
+#
+# 后端：http://localhost:8082/api/note/feed
+# 前端开发模式仍在本机跑：cd web && npm run dev（代理指向 127.0.0.1:8082）
+#
+# 说明：容器内连接数据库用服务名 postgres；宿主机 5432 常被本机 PostgreSQL 占用，
+# 因此数据库映射到 55432 仅用于调试，应用连接不走宿主机端口。
+
+services:
+  postgres:
+    image: docker.m.daocloud.io/library/postgres:17-alpine
+    environment:
+      POSTGRES_DB: rednote
+      POSTGRES_USER: rednote
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请先 export POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rednote -d rednote"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: docker.m.daocloud.io/library/redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"] # 纯缓存，无需持久化
+    ports:
+      - "127.0.0.1:6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  elasticsearch:
+    # 来自 docker.elastic.co 官方源（本机已有 9.5.0 本地缓存）；
+    # 网络不可达时先手动 docker pull 或换可达的镜像源
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    ports:
+      - "127.0.0.1:9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    restart: unless-stopped
+
+  rednote:
+    build: .
+    ports:
+      - "${APP_PORT:-8082}:8082"
+    environment:
+      REDNOTE_PORT: "8082"
+      REDNOTE_UPLOADDIR: "/data/uploads"
+      REDNOTE_DB_URL: "postgres://rednote:${POSTGRES_PASSWORD:?请先 export POSTGRES_PASSWORD}@postgres:5432/rednote?sslmode=disable"
+      REDNOTE_JWT_SECRET: ${REDNOTE_JWT_SECRET:?请先 export REDNOTE_JWT_SECRET}
+      REDNOTE_REDIS_ADDR: "redis:6379"
+      REDNOTE_ES_ADDR: "http://elasticsearch:9200"
+      TZ: Asia/Shanghai
+    volumes:
+      - rednote-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8082/api/note/feed"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  rednote-data:
+  es-data:

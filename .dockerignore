@@ -1,0 +1,11 @@
+# 一次性构建镜像，避免把本地构建产物、上传数据和密钥带进上下文
+.git
+.gitignore
+data/
+web/node_modules
+web/dist
+*.exe
+*.exe~
+*.log
+rednote.yaml
+rednote_test*
