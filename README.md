@@ -73,6 +73,14 @@ go build -o rednote.exe .
 
 默认监听 `http://127.0.0.1:8082`。
 
+运行集成测试（需要测试库 `rednote_test`，Redis / ES 可选）：
+
+```bash
+TEST_DATABASE_URL="postgres://postgres:密码@127.0.0.1:5432/rednote_test?sslmode=disable" \
+REDNOTE_REDIS_ADDR="127.0.0.1:6379" REDNOTE_ES_ADDR="http://127.0.0.1:9200" \
+go test ./...
+```
+
 ### 3. Web
 
 ```bash
