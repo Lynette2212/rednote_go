@@ -106,6 +106,8 @@ func (r apiResp) into(t *testing.T, out interface{}) {
 type noteDTO struct {
 	Id            int64    `json:"id"`
 	Title         string   `json:"title"`
+	MediaType     string   `json:"mediaType"`
+	VideoUrl      string   `json:"videoUrl"`
 	Images        []string `json:"images"`
 	LikeCount     int64    `json:"likeCount"`
 	FavoriteCount int64    `json:"favoriteCount"`
@@ -379,6 +381,50 @@ func TestRegisterLoginAndAuth(t *testing.T) {
 }
 
 // ---------- 发笔记 / 瀑布流 / 详情 ----------
+
+func TestPublishVideoNote(t *testing.T) {
+	e := newTestEnv(t)
+	token, _ := e.register("video_author")
+
+	resp := e.do(http.MethodPost, "/api/note/create", token, map[string]interface{}{
+		"title":    "樱夜",
+		"content":  "视频笔记测试",
+		"videoUrl": "/videos/anime_sakura.mp4",
+		"images":   []string{"/videos/posters/anime_sakura.jpg"},
+		"tags":     []string{"视频"},
+	})
+	e.mustOK(resp, "发布视频笔记")
+	var created noteDTO
+	resp.into(t, &created)
+	if created.MediaType != "video" || created.VideoUrl != "/videos/anime_sakura.mp4" {
+		t.Fatalf("视频笔记字段异常: mediaType=%s videoUrl=%s", created.MediaType, created.VideoUrl)
+	}
+
+	detail := e.noteDetail(created.Id, token)
+	if detail.MediaType != "video" || detail.VideoUrl != "/videos/anime_sakura.mp4" {
+		t.Fatalf("详情视频字段异常: mediaType=%s videoUrl=%s", detail.MediaType, detail.VideoUrl)
+	}
+
+	// 没有封面图也允许发布视频
+	resp = e.do(http.MethodPost, "/api/note/create", token, map[string]interface{}{
+		"title":    "无封面视频",
+		"videoUrl": "/videos/anime_neon.mp4",
+	})
+	e.mustOK(resp, "发布无封面视频")
+
+	for _, videoUrl := range []string{
+		"http://evil.example/x.mp4",
+		"/uploads/../secret.mp4",
+		"/videos/x.txt",
+	} {
+		resp := e.do(http.MethodPost, "/api/note/create", token, map[string]interface{}{
+			"title": "bad video", "videoUrl": videoUrl,
+		})
+		if resp.Success || resp.Code != 400 {
+			t.Fatalf("非法视频地址 %s 应被拒绝，实际 code=%d success=%v", videoUrl, resp.Code, resp.Success)
+		}
+	}
+}
 
 func TestPublishRejectsExternalImages(t *testing.T) {
 	e := newTestEnv(t)

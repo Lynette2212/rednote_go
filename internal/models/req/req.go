@@ -19,10 +19,11 @@ type UpdateProfileReq struct {
 }
 
 type NoteCreateReq struct {
-	Title   string   `json:"title" binding:"required,max=64"`
-	Content string   `json:"content" binding:"max=5000"`
-	Images  []string `json:"images" binding:"required,min=1,max=9,dive,required"`
-	Tags    []string `json:"tags" binding:"max=10,dive,max=20"`
+	Title    string   `json:"title" binding:"required,max=64"`
+	Content  string   `json:"content" binding:"max=5000"`
+	Images   []string `json:"images" binding:"max=9,dive,required"`
+	Tags     []string `json:"tags" binding:"max=10,dive,max=20"`
+	VideoUrl string   `json:"videoUrl" binding:"max=512"`
 }
 
 type CommentCreateReq struct {

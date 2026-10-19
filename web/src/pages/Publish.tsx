@@ -1,16 +1,20 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { noteApi } from '../api'
-import { ApiError, uploadFile } from '../api/client'
+import { ApiError, mediaUrl, uploadFile, uploadVideo } from '../api/client'
 import { useAuth } from '../store/auth'
 
 export default function Publish() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const videoInputRef = useRef<HTMLInputElement>(null)
 
   const [images, setImages] = useState<string[]>([])
+  const [videoUrl, setVideoUrl] = useState('')
+  const [videoName, setVideoName] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [videoUploading, setVideoUploading] = useState(false)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [tagInput, setTagInput] = useState('')
@@ -41,6 +45,28 @@ export default function Publish() {
     }
   }
 
+  const onSelectVideo = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 200 * 1024 * 1024) {
+      setError('视频不能超过 200MB')
+      e.target.value = ''
+      return
+    }
+    setVideoUploading(true)
+    setError('')
+    try {
+      const url = await uploadVideo(file)
+      setVideoUrl(url)
+      setVideoName(file.name)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '视频上传失败')
+    } finally {
+      setVideoUploading(false)
+      e.target.value = ''
+    }
+  }
+
   const addTag = () => {
     const t = tagInput.trim().replace(/^#/, '')
     if (t && !tags.includes(t) && tags.length < 10) {
@@ -50,8 +76,8 @@ export default function Publish() {
   }
 
   const submit = async () => {
-    if (images.length === 0) {
-      setError('请至少上传一张图片')
+    if (!videoUrl && images.length === 0) {
+      setError('请至少上传一张图片或一个视频')
       return
     }
     if (!title.trim()) {
@@ -61,7 +87,13 @@ export default function Publish() {
     setSubmitting(true)
     setError('')
     try {
-      const note = await noteApi.create({ title: title.trim(), content: content.trim(), images, tags })
+      const note = await noteApi.create({
+        title: title.trim(),
+        content: content.trim(),
+        images,
+        tags,
+        videoUrl: videoUrl || undefined,
+      })
       navigate(`/note/${note.id}`)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '发布失败')
@@ -73,10 +105,45 @@ export default function Publish() {
     <div className="publish-page">
       <h2>发布笔记</h2>
       <div className="publish-form">
+        <div className="video-upload">
+          {videoUrl ? (
+            <div className="video-preview">
+              <video src={mediaUrl(videoUrl)} controls preload="metadata" />
+              <div className="video-meta">
+                <span>{videoName || '视频'}</span>
+                <button
+                  onClick={() => {
+                    setVideoUrl('')
+                    setVideoName('')
+                  }}
+                >
+                  移除视频
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              className="upload-add video-add"
+              onClick={() => videoInputRef.current?.click()}
+              disabled={videoUploading}
+            >
+              {videoUploading ? '视频上传中…' : '+ 添加视频（mp4 / webm，≤200MB）'}
+            </button>
+          )}
+          <input
+            ref={videoInputRef}
+            type="file"
+            accept="video/mp4,video/webm"
+            hidden
+            onChange={onSelectVideo}
+          />
+        </div>
+
+        <div className="upload-label">{videoUrl ? '封面 / 配图（可选）' : '图片'}</div>
         <div className="upload-area">
           {images.map((url, i) => (
             <div className="upload-preview" key={url}>
-              <img src={url} alt="" />
+              <img src={mediaUrl(url)} alt="" />
               <button className="remove-img" onClick={() => setImages(images.filter((_, idx) => idx !== i))}>
                 ×
               </button>

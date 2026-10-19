@@ -1,16 +1,19 @@
 import { Link } from 'react-router-dom'
 import type { Note } from '../types'
+import { mediaUrl } from '../api/client'
 import { Avatar } from './AppHeader'
 
 export default function NoteCard({ note }: { note: Note }) {
+  const cover = mediaUrl(note.images[0])
   return (
     <Link to={`/note/${note.id}`} className="note-card">
       <div className="note-cover">
-        {note.images[0] ? (
-          <img src={note.images[0]} alt={note.title} loading="lazy" />
+        {cover ? (
+          <img src={cover} alt={note.title} loading="lazy" />
         ) : (
           <div className="note-cover-empty">{note.title}</div>
         )}
+        {note.mediaType === 'video' && <span className="video-badge">视频</span>}
       </div>
       <div className="note-card-body">
         <h3 className="note-card-title">{note.title}</h3>

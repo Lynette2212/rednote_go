@@ -34,3 +34,26 @@ func Upload(ctx *gin.Context) {
 	}
 	ginx.WriteJSON(ctx, gin.H{"url": url})
 }
+
+// UploadVideo 上传视频，返回 {url}
+func UploadVideo(ctx *gin.Context) {
+	user := common.GetCurrentUser(ctx)
+	if user == nil {
+		ginx.WriteJSON(ctx, errs.NotLogin())
+		return
+	}
+	ctx.Request.Body = http.MaxBytesReader(ctx.Writer, ctx.Request.Body, services.MaxVideoUploadSize+2<<20)
+	file, header, err := ctx.Request.FormFile("file")
+	if err != nil {
+		ginx.WriteJSON(ctx, errs.ParamsError("请选择视频文件"))
+		return
+	}
+	defer file.Close()
+
+	url, err := services.UploadService.SaveVideo(file, header)
+	if err != nil {
+		ginx.WriteJSON(ctx, err)
+		return
+	}
+	ginx.WriteJSON(ctx, gin.H{"url": url})
+}

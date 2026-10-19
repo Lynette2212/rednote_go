@@ -39,7 +39,7 @@ export const noteApi = {
   userFavorites: (userId: number, page: number) => get<PageResult<Note>>(`/api/note/user_favorites${qs({ userId, page, limit: 20 })}`),
   search: (q: string, page: number) => get<PageResult<Note>>(`/api/note/search${qs({ q, page, limit: 20 })}`),
   detail: (id: number) => get<Note>(`/api/note/${id}`),
-  create: (data: { title: string; content: string; images: string[]; tags: string[] }) =>
+  create: (data: { title: string; content: string; images: string[]; tags: string[]; videoUrl?: string }) =>
     post<Note>('/api/note/create', data),
   remove: (id: number) => post<void>(`/api/note/delete/${id}`),
 }

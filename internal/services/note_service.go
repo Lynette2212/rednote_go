@@ -76,11 +76,19 @@ func (s *noteService) InvalidateNoteCache(id int64) {
 	cache.Del(context.Background(), cache.NoteKey(id))
 }
 
-func (s *noteService) Publish(userId int64, title, content string, images, tags []string) (*models.Note, error) {
+func (s *noteService) Publish(userId int64, title, content string, images, tags []string, videoUrl string) (*models.Note, error) {
 	title = strings.TrimSpace(title)
 	content = strings.TrimSpace(content)
-	if len(images) == 0 {
-		return nil, errs.ParamsError("请至少上传一张图片")
+	videoUrl = strings.TrimSpace(videoUrl)
+
+	mediaType := "image"
+	if videoUrl != "" {
+		if !validVideoPath(videoUrl) {
+			return nil, errs.ParamsError("视频地址不合法")
+		}
+		mediaType = "video"
+	} else if len(images) == 0 {
+		return nil, errs.ParamsError("请至少上传一张图片或一个视频")
 	}
 	if len(images) > 9 {
 		return nil, errs.ParamsError("最多上传 9 张图片")
@@ -96,6 +104,9 @@ func (s *noteService) Publish(userId int64, title, content string, images, tags 
 	if len([]rune(title)) > 64 {
 		return nil, errs.ParamsError("标题最多 64 字")
 	}
+	if len([]rune(content)) > 5000 {
+		return nil, errs.ParamsError("正文最多 5000 字")
+	}
 
 	imagesJson, _ := json.Marshal(images)
 	tagsJson, _ := json.Marshal(tags)
@@ -106,6 +117,8 @@ func (s *noteService) Publish(userId int64, title, content string, images, tags 
 		Content:    content,
 		Images:     string(imagesJson),
 		Tags:       string(tagsJson),
+		MediaType:  mediaType,
+		VideoUrl:   videoUrl,
 		CreateTime: now,
 		UpdateTime: now,
 	}
@@ -139,14 +152,30 @@ func (s *noteService) Delete(userId, noteId int64) error {
 
 // ===== 搜索索引：发布/删除时同步 ES；失败只记日志，不影响主流程 =====
 
-// validUploadPath 只允许引用本服务上传目录下的图片，阻止路径穿越与外部 URL
+// validUploadPath 只允许本服务上传目录或 Web 内置演示目录下的图片
 func validUploadPath(p string) bool {
-	if !strings.HasPrefix(p, "/uploads/") || strings.Contains(p, "..") ||
-		strings.ContainsAny(p, "\\\x00") {
+	if !(strings.HasPrefix(p, "/uploads/") || strings.HasPrefix(p, "/videos/")) ||
+		strings.Contains(p, "..") || strings.ContainsAny(p, "\\\x00") {
 		return false
 	}
 	switch strings.ToLower(path.Ext(p)) {
 	case ".jpg", ".jpeg", ".png", ".gif", ".webp":
+		return true
+	default:
+		return false
+	}
+}
+
+// validVideoPath 允许上传目录和 Web 内置演示视频，阻止路径穿越与外部 URL
+func validVideoPath(p string) bool {
+	if !(strings.HasPrefix(p, "/uploads/videos/") || strings.HasPrefix(p, "/videos/")) {
+		return false
+	}
+	if strings.Contains(p, "..") || strings.ContainsAny(p, "\\\x00") {
+		return false
+	}
+	switch strings.ToLower(path.Ext(p)) {
+	case ".mp4", ".webm":
 		return true
 	default:
 		return false

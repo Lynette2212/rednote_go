@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { actionApi, commentApi, noteApi } from '../api'
-import { ApiError } from '../api/client'
+import { ApiError, mediaUrl } from '../api/client'
 import { Avatar } from '../components/AppHeader'
 import { formatCount, formatTime, HeartIcon, StarIcon } from '../components/NoteCard'
 import { useAuth } from '../store/auth'
@@ -105,9 +105,18 @@ export default function NoteDetail() {
     <div className="note-detail-wrap">
       <div className="note-detail">
         <div className="note-gallery">
-          {note.images.length > 0 ? (
+          {note.mediaType === 'video' && note.videoUrl ? (
+            <video
+              className="note-video"
+              src={mediaUrl(note.videoUrl)}
+              poster={note.images[0] ? mediaUrl(note.images[0]) : undefined}
+              controls
+              playsInline
+              preload="metadata"
+            />
+          ) : note.images.length > 0 ? (
             <>
-              <img src={note.images[imgIndex]} alt={note.title} />
+              <img src={mediaUrl(note.images[imgIndex])} alt={note.title} />
               {note.images.length > 1 && (
                 <>
                   {imgIndex > 0 && (

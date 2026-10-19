@@ -1,4 +1,13 @@
 const TOKEN_KEY = 'rednote_token'
+const MEDIA_BASE = import.meta.env.VITE_API_BASE ?? ''
+
+export function mediaUrl(path?: string): string {
+  if (!path) return ''
+  if (/^https?:\/\//.test(path)) return path
+  // 演示视频与封面随 Web 一起发布
+  if (path.startsWith('/videos/')) return path
+  return `${MEDIA_BASE}${path}`
+}
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY)
@@ -50,5 +59,12 @@ export async function uploadFile(file: File): Promise<string> {
   const form = new FormData()
   form.append('file', file)
   const data = await request<{ url: string }>('/api/upload', { method: 'POST', body: form })
+  return data.url
+}
+
+export async function uploadVideo(file: File): Promise<string> {
+  const form = new FormData()
+  form.append('file', file)
+  const data = await request<{ url: string }>('/api/upload/video', { method: 'POST', body: form })
   return data.url
 }

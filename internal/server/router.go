@@ -79,8 +79,7 @@ func NewRouter() *gin.Engine {
 	if len(conf.AllowedOrigins) == 0 || (len(conf.AllowedOrigins) == 1 && conf.AllowedOrigins[0] == "*") {
 		corsConfig.AllowAllOrigins = true
 	} else {
-		// gin-contrib/cors 不接受字面量 "null"（Electron file:// 的 Origin），
-		// 用 AllowOriginFunc 做精确匹配，不触发库的 origin 格式校验。
+		// gin-contrib/cors 对 origin 格式有校验；这里用 AllowOriginFunc 精确匹配配置项
 		allowed := append([]string(nil), conf.AllowedOrigins...)
 		corsConfig.AllowOriginFunc = func(origin string) bool {
 			for _, item := range allowed {
@@ -158,4 +157,5 @@ func registerAPIRoutes(group *gin.RouterGroup, authLimit gin.HandlerFunc) {
 	protected.POST("/follow/add", api.FollowAdd)
 	protected.POST("/follow/remove", api.FollowRemove)
 	protected.POST("/upload", api.Upload)
+	protected.POST("/upload/video", api.UploadVideo)
 }

@@ -2,8 +2,6 @@ port: 8082 # 端口
 allowedOrigins:
   - http://127.0.0.1:5173
   - http://localhost:5173
-  - http://127.0.0.1:5174
-  - "null" # Electron 打包后 file:// 页面的 Origin
 jwtSecret: change-me-to-a-random-string # JWT 签名密钥，生产环境务必修改
 uploadDir: ./data/uploads # 上传文件目录
 

@@ -46,7 +46,7 @@ func NoteCreate(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, err)
 		return
 	}
-	note, err := services.NoteService.Publish(user.Id, r.Title, r.Content, r.Images, r.Tags)
+	note, err := services.NoteService.Publish(user.Id, r.Title, r.Content, r.Images, r.Tags, r.VideoUrl)
 	if err != nil {
 		ginx.WriteJSON(ctx, err)
 		return

@@ -1,13 +1,20 @@
 # 小红薯 RedNote
 
-小红书风格的图文 / 视频社区，包含 Web、桌面端与 Go 后端。
+小红书风格的图文 / 视频社区，包含 Web 前端与 Go 后端。
 
 | 目录 | 技术栈 | 说明 |
 |---|---|---|
-| `web/` | React 18 + TypeScript + Vite | Web 前端 |
-| `desktop/` | Electron 44 + React 18 + TypeScript | 桌面端；自研 FFmpeg 8.1 播放内核 |
+| `web/` | React 18 + TypeScript + Vite | Web 前端（图文 + 视频） |
 | `internal/` | Go + Gin + GORM | 后端 API（分层参考 bbs-go） |
 | `docker-compose.yml` | PostgreSQL / Redis / Elasticsearch | 基础设施 |
+
+## 功能
+
+- 信息流、笔记详情、发布、评论、点赞 / 收藏 / 关注、搜索
+- 图文与视频笔记：详情页使用原生 `<video>` 播放，信息流展示视频封面与标识
+- 上传：图片 ≤ 20MB，视频 mp4/webm ≤ 200MB（保存在 `data/uploads`）
+- Redis：信息流缓存（30s）、接口限流
+- Elasticsearch：笔记全文检索索引（发布/删除自动同步，启动时回填）
 
 ## 目录结构
 
@@ -25,48 +32,20 @@ rednote_go/
 │   ├── middleware/
 │   ├── server/              # 初始化与路由
 │   └── pkg/                 # cache / es / token 等基础设施
-├── web/                     # React Web
-├── desktop/                 # Electron 桌面端
-│   └── native/              # FFmpeg 播放内核（Node-API）
+├── web/
+│   ├── public/videos/       # 内置演示视频与封面
+│   └── src/                 # React 页面与组件
 ├── docker-compose.yml
 └── rednote.example.yaml
 ```
 
 运行时上传文件放在 `data/`，不提交到仓库。
 
-## 功能
+## 依赖
 
-- 竖向信息流、滚轮 / 方向键切换
-- 桌面端播放器：FFmpeg 解封装 + 软解、miniaudio 音频输出、音频主时钟音画同步、暂停、精确 seek
-- 内置 3 段二次元测试视频（樱夜 / 海边黄昏 / 霓虹雨夜），支持上一段 / 下一段切换
-- Redis：信息流缓存（30s）与接口限流
-- Elasticsearch：笔记全文检索索引（发布/删除自动同步，启动时回填）
-
-## 工程化
-
-- HTTP 状态码：按业务 code 映射 400/401/403/404/429/500，保持 JSON 信封
-- 路由级鉴权：`OptionalAuth`（公开接口解析用户）与 `RequireAuth`（写接口强制登录）
-- JWT：锁定 HS256、7 天有效期、登出写入 Redis 黑名单；封禁用户拒绝登录态
-- CORS：显式白名单（Web 5173 / 桌面开发 5174 / Electron file:// 的 `null`），不使用通配符 + credentials
-- 错误隐藏：内部异常只记录日志，客户端统一收到“服务器内部错误”
-- 上传：请求体与文件流双重 20MB 限制；笔记图片只允许引用 `/uploads/` 下的图片
-- 关注/粉丝使用冗余计数，Follow/Unfollow 在事务内完成，重复操作幂等
-- 评论删除：一级评论级联隐藏回复，并按实际条数扣减计数
-- 笔记详情缓存使用 `singleflight` 防击穿；限流按登录用户优先、未登录按 IP（Lua 原子 INCR+EXPIRE）
-- 健康检查：`/healthz`（进程存活）、`/readyz`（PostgreSQL，可选 Redis/ES）
-- 用户响应统一走 `models/resp.UserResponse`，不直接暴露 GORM 模型
-- CI：Go vet / build / test（PostgreSQL + Redis + ES service）+ Web 构建 + 桌面端构建
-
-## 依赖下载
-
-- FFmpeg 8.1 shared dev（Windows x64）
-  - 官方：https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-gpl-shared-8.1.zip
-  - 国内镜像：https://gh-proxy.com/https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-gpl-shared-8.1.zip
-  - 解压后把 `include/`、`lib/`、`bin/` 放到 `desktop/native/third_party/ffmpeg/`
-- Electron 44 头文件：https://npmmirror.com/mirrors/electron/v44.9.0/node-v44.9.0-headers.tar.gz
-  - 解压到 `desktop/native/third_party/electron/`
-- miniaudio：https://raw.githubusercontent.com/mackron/miniaudio/master/miniaudio.h
-  - 放到 `desktop/native/third_party/miniaudio.h`
+- Go 1.26、Node.js 22+、PostgreSQL 18
+- Redis / Elasticsearch：`docker compose up -d redis elasticsearch`
+- 无需 FFmpeg / Electron；视频播放使用浏览器原生能力
 
 ## 启动
 
@@ -106,35 +85,30 @@ npm run dev
 
 打开 http://127.0.0.1:5173
 
-### 4. 桌面端
+生产构建时可用 `VITE_API_BASE` 指向后端地址；开发模式由 Vite 代理 `/api` 与 `/uploads`。
 
-原生模块需要 Electron 的导入库（由 `electron.exe` 导出生成，见下方脚本），然后：
+## 视频笔记
 
-```bash
-cd desktop
-npm install
-npm run build:native
-npm run build
-npm start
-```
+- 演示视频在 `web/public/videos/`（樱夜 / 海边黄昏 / 霓虹雨夜），封面在 `posters/`
+- 发布页支持上传 mp4 / webm，后端保存到 `data/uploads/videos/` 并通过 `/uploads/videos/...` 访问
+- 笔记字段：`mediaType`（image/video）、`videoUrl`；视频笔记可用 `images[0]` 作为封面
 
-后端地址默认 `http://127.0.0.1:8082`，可通过 `desktop/.env` 覆盖：
+## 工程化
 
-```bash
-VITE_API_BASE=http://127.0.0.1:8082
-```
-
-生成 `electron.lib`（PowerShell / Git Bash，需 VS 的 dumpbin 与 lib 在 PATH）：
-
-```bash
-cd desktop/native
-dumpbin -exports ../node_modules/electron/dist/electron.exe | grep -o 'napi_[A-Za-z0-9_]*' | sort -u > third_party/electron/napi_exports.txt
-{ echo "LIBRARY electron.exe"; echo "EXPORTS"; cat third_party/electron/napi_exports.txt; } > third_party/electron/electron.def
-lib -def:third_party/electron/electron.def -machine:x64 -out:third_party/electron/electron.lib
-```
+- HTTP 状态码：按业务 code 映射 400/401/403/404/429/500，保持 JSON 信封
+- 路由级鉴权：`OptionalAuth`（公开接口解析用户）与 `RequireAuth`（写接口强制登录）
+- JWT：锁定 HS256、7 天有效期、登出写入 Redis 黑名单；封禁用户拒绝登录态
+- CORS：显式白名单（http://127.0.0.1:5173、http://localhost:5173），不使用通配符 + credentials
+- 错误隐藏：内部异常只记录日志，客户端统一收到“服务器内部错误”
+- 上传：请求体与文件流双重大小限制；笔记媒体只允许引用白名单目录
+- 关注/粉丝使用冗余计数，Follow/Unfollow 在事务内完成，重复操作幂等
+- 评论删除：一级评论级联隐藏回复，并按实际条数扣减计数
+- 笔记详情缓存使用 `singleflight` 防击穿；限流按登录用户优先、未登录按 IP（Lua 原子 INCR+EXPIRE）
+- 健康检查：`/healthz`（进程存活）、`/readyz`（PostgreSQL，可选 Redis/ES）
+- 用户响应统一走 `models/resp.UserResponse`，不直接暴露 GORM 模型
+- CI：Go vet / build / test（PostgreSQL + Redis + ES service）+ Web 构建
 
 ## 说明
 
-- 仓库不包含 `node_modules`、构建产物、FFmpeg DLL（`avcodec-62.dll` 单文件 114MB，超过 GitHub 限制）以及数据库密码配置。
-- 桌面端点信息流封面即可打开播放器，默认播放 `desktop/assets/videos/` 下的二次元测试片（樱夜 / 海边黄昏 / 霓虹雨夜）。
-- 后端按 bbs-go 的分层组织：`handlers → services → repositories → models`，常量与响应 DTO 分别在 `models/constants`、`models/resp`。
+- 仓库不包含 `node_modules`、构建产物、数据库密码配置与运行时上传文件。
+- 当前视频上传落本地磁盘；生产部署建议替换为对象存储 + CDN，并补充病毒扫描/转码。

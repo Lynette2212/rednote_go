@@ -41,7 +41,10 @@ var allowedImageMIMEs = map[string]string{
 	"image/webp": ".webp",
 }
 
-const MaxImageUploadSize = 20 << 20 // 20MB
+const (
+	MaxImageUploadSize = 20 << 20  // 20MB
+	MaxVideoUploadSize = 200 << 20 // 200MB
+)
 
 // SaveImage 保存上传的图片，返回可访问的 URL 路径
 func (s *uploadService) SaveImage(file multipart.File, header *multipart.FileHeader) (string, error) {
@@ -94,6 +97,64 @@ func (s *uploadService) SaveImage(file multipart.File, header *multipart.FileHea
 		dst.Close()
 		os.Remove(absPath)
 		return "", errs.ParamsError("图片不能超过 20MB")
+	}
+	if err := dst.Close(); err != nil {
+		os.Remove(absPath)
+		return "", err
+	}
+	return "/uploads/" + filepath.ToSlash(relDir) + "/" + filename, nil
+}
+
+// SaveVideo 保存上传的视频（mp4/webm），返回可访问的 URL 路径
+func (s *uploadService) SaveVideo(file multipart.File, header *multipart.FileHeader) (string, error) {
+	if header.Size > MaxVideoUploadSize {
+		return "", errs.ParamsError("视频不能超过 200MB")
+	}
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	if ext != ".mp4" && ext != ".webm" {
+		return "", errs.ParamsError("仅支持 mp4/webm 视频")
+	}
+
+	head := make([]byte, 16)
+	n, err := io.ReadFull(file, head)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+	if n < 12 {
+		return "", errs.ParamsError("视频内容无效")
+	}
+	isMP4 := string(head[4:8]) == "ftyp"
+	isWebM := n >= 4 && head[0] == 0x1A && head[1] == 0x45 && head[2] == 0xDF && head[3] == 0xA3
+	if (ext == ".mp4" && !isMP4 && !isWebM) || (ext == ".webm" && !isWebM) {
+		return "", errs.ParamsError("视频内容与扩展名不符")
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return "", err
+	}
+
+	now := time.Now()
+	relDir := filepath.Join("videos", now.Format("2006"), now.Format("01"), now.Format("02"))
+	absDir := filepath.Join(config.Instance.UploadDir, relDir)
+	if err := os.MkdirAll(absDir, 0o755); err != nil {
+		return "", err
+	}
+	filename := uuid.NewString() + ext
+	absPath := filepath.Join(absDir, filename)
+
+	dst, err := os.Create(absPath)
+	if err != nil {
+		return "", err
+	}
+	written, err := io.Copy(dst, io.LimitReader(file, MaxVideoUploadSize+1))
+	if err != nil {
+		dst.Close()
+		os.Remove(absPath)
+		return "", err
+	}
+	if written > MaxVideoUploadSize {
+		dst.Close()
+		os.Remove(absPath)
+		return "", errs.ParamsError("视频不能超过 200MB")
 	}
 	if err := dst.Close(); err != nil {
 		os.Remove(absPath)

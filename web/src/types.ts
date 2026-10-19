@@ -19,6 +19,8 @@ export interface Note {
   userId: number
   title: string
   content: string
+  mediaType: 'image' | 'video'
+  videoUrl: string
   images: string[]
   tags: string[]
   likeCount: number

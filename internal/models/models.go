@@ -33,8 +33,10 @@ type Note struct {
 	UserId        int64  `gorm:"index;not null" json:"userId"`
 	Title         string `gorm:"size:128" json:"title"`
 	Content       string `gorm:"type:text" json:"content"`
-	Images        string `gorm:"type:text" json:"images"` // JSON 数组
-	Tags          string `gorm:"type:text" json:"tags"`   // JSON 数组
+	Images        string `gorm:"type:text" json:"images"`                         // JSON 数组（视频笔记可作为封面）
+	Tags          string `gorm:"type:text" json:"tags"`                           // JSON 数组
+	MediaType     string `gorm:"size:16;not null;default:image" json:"mediaType"` // image / video
+	VideoUrl      string `gorm:"size:512" json:"videoUrl"`
 	LikeCount     int64  `gorm:"default:0" json:"likeCount"`
 	FavoriteCount int64  `gorm:"default:0" json:"favoriteCount"`
 	CommentCount  int64  `gorm:"default:0" json:"commentCount"`
